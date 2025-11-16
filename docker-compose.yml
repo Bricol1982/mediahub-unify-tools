@@ -257,16 +257,16 @@ services:
 
   # ===========================================
   # IPTV Proxy for Jellyfin
+  # NOTE: Using xTeVe instead of Threadfin for ARM64 compatibility
   # ===========================================
-  threadfin:
-    image: fyb3roptik/threadfin:latest
-    container_name: threadfin
+  xteve:
+    image: dnsforge/xteve:latest
+    container_name: xteve
     environment:
-      - PUID=${PUID}
-      - PGID=${PGID}
       - TZ=${TZ}
     volumes:
-      - ${CONFIG_PATH}/threadfin:/home/threadfin/conf
+      - ${CONFIG_PATH}/xteve:/home/xteve/conf
+      - ${CONFIG_PATH}/xteve/tmp:/tmp/xteve
     ports:
       - "34400:34400"
     restart: unless-stopped
