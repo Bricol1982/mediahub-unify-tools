@@ -1,0 +1,783 @@
+version: "3.8"
+
+# MediaHub Unify Tools - Docker Compose Configuration
+# Optimized for Raspberry Pi 4
+
+services:
+  # ===========================================
+  # VPN Container (All torrent traffic routes through this)
+  # ===========================================
+  gluetun:
+    image: qmcgaw/gluetun:latest
+    container_name: gluetun
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    ports:
+      - "8888:8888/tcp" # HTTP proxy
+      - "8388:8388/tcp" # Shadowsocks
+      - "8388:8388/udp" # Shadowsocks
+      - "8080:8080"     # qBittorrent WebUI
+      - "6881:6881"     # qBittorrent
+      - "6881:6881/udp" # qBittorrent
+    volumes:
+      - ${CONFIG_PATH}/gluetun:/gluetun
+    environment:
+      # VPN Provider Configuration (supports 24+ providers)
+      - VPN_SERVICE_PROVIDER=${VPN_SERVICE_PROVIDER:-protonvpn}
+      - VPN_TYPE=${VPN_TYPE:-openvpn}
+      # OpenVPN Authentication
+      - OPENVPN_USER=${OPENVPN_USER:-${PROTON_USER:-}}
+      - OPENVPN_PASSWORD=${OPENVPN_PASSWORD:-${PROTON_PASS:-}}
+      # Wireguard Authentication (for Mullvad, AirVPN, etc.)
+      - WIREGUARD_PRIVATE_KEY=${WIREGUARD_PRIVATE_KEY:-}
+      - WIREGUARD_PRESHARED_KEY=${WIREGUARD_PRESHARED_KEY:-}
+      - WIREGUARD_ADDRESSES=${WIREGUARD_ADDRESSES:-}
+      # Server Selection
+      - SERVER_COUNTRIES=${SERVER_COUNTRIES:-${VPN_COUNTRY:-Netherlands}}
+      - SERVER_REGIONS=${SERVER_REGIONS:-}
+      - SERVER_CITIES=${SERVER_CITIES:-}
+      # Custom Config Support
+      - OPENVPN_CUSTOM_CONFIG=${OPENVPN_CUSTOM_CONFIG:-}
+      # AirVPN Specific
+      - VPN_ENDPOINT_IP=${VPN_ENDPOINT_IP:-}
+      - VPN_ENDPOINT_PORT=${VPN_ENDPOINT_PORT:-}
+      # General
+      - TZ=${TZ}
+      - UPDATER_PERIOD=24h
+    restart: unless-stopped
+    networks:
+      - medianet
+
+  # ===========================================
+  # Download Client
+  # ===========================================
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:latest
+    container_name: qbittorrent
+    network_mode: "service:gluetun"
+    depends_on:
+      - gluetun
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+      - WEBUI_PORT=8080
+    volumes:
+      - ${CONFIG_PATH}/qbittorrent:/config
+      - ${DOWNLOAD_PATH}:/downloads
+      - ${MEDIA_PATH}:/media
+    restart: unless-stopped
+
+  # ===========================================
+  # Media Management - *arr Suite
+  # ===========================================
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:latest
+    container_name: prowlarr
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - ${CONFIG_PATH}/prowlarr:/config
+    ports:
+      - "9696:9696"
+    restart: unless-stopped
+    networks:
+      - medianet
+    depends_on:
+      - flaresolverr
+
+  flaresolverr:
+    image: ghcr.io/flaresolverr/flaresolverr:latest
+    container_name: flaresolverr
+    environment:
+      - LOG_LEVEL=info
+      - LOG_HTML=false
+      - CAPTCHA_SOLVER=none
+      - TZ=${TZ}
+    ports:
+      - "8191:8191"
+    restart: unless-stopped
+    networks:
+      - medianet
+
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:latest
+    container_name: sonarr
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - ${CONFIG_PATH}/sonarr:/config
+      - ${MEDIA_PATH}/tv:/tv
+      - ${DOWNLOAD_PATH}:/downloads
+    ports:
+      - "8989:8989"
+    restart: unless-stopped
+    networks:
+      - medianet
+    depends_on:
+      - prowlarr
+      - qbittorrent
+
+  radarr:
+    image: lscr.io/linuxserver/radarr:latest
+    container_name: radarr
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - ${CONFIG_PATH}/radarr:/config
+      - ${MEDIA_PATH}/movies:/movies
+      - ${DOWNLOAD_PATH}:/downloads
+    ports:
+      - "7878:7878"
+    restart: unless-stopped
+    networks:
+      - medianet
+    depends_on:
+      - prowlarr
+      - qbittorrent
+
+  lidarr:
+    image: lscr.io/linuxserver/lidarr:latest
+    container_name: lidarr
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - ${CONFIG_PATH}/lidarr:/config
+      - ${MEDIA_PATH}/music:/music
+      - ${DOWNLOAD_PATH}:/downloads
+    ports:
+      - "8686:8686"
+    restart: unless-stopped
+    networks:
+      - medianet
+    depends_on:
+      - prowlarr
+      - qbittorrent
+
+  bazarr:
+    image: lscr.io/linuxserver/bazarr:latest
+    container_name: bazarr
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - ${CONFIG_PATH}/bazarr:/config
+      - ${MEDIA_PATH}/movies:/movies
+      - ${MEDIA_PATH}/tv:/tv
+    ports:
+      - "6767:6767"
+    restart: unless-stopped
+    networks:
+      - medianet
+    depends_on:
+      - sonarr
+      - radarr
+
+  readarr:
+    image: lscr.io/linuxserver/readarr:latest
+    container_name: readarr
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - ${CONFIG_PATH}/readarr:/config
+      - ${MEDIA_PATH}/books:/books
+      - ${DOWNLOAD_PATH}:/downloads
+    ports:
+      - "8787:8787"
+    restart: unless-stopped
+    networks:
+      - medianet
+    depends_on:
+      - prowlarr
+      - qbittorrent
+
+  # ===========================================
+  # Media Server
+  # ===========================================
+  jellyfin:
+    image: lscr.io/linuxserver/jellyfin:latest
+    container_name: jellyfin
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - ${CONFIG_PATH}/jellyfin:/config
+      - ${MEDIA_PATH}/tv:/data/tvshows
+      - ${MEDIA_PATH}/movies:/data/movies
+      - ${MEDIA_PATH}/music:/data/music
+      - ${MEDIA_PATH}/books:/data/books
+    ports:
+      - "8096:8096"
+      - "8920:8920" # HTTPS
+      - "7359:7359/udp" # Discovery
+      - "1900:1900/udp" # DLNA
+    devices:
+      - /dev/vchiq:/dev/vchiq # RPi hardware acceleration
+      - /dev/video10:/dev/video10
+      - /dev/video11:/dev/video11
+      - /dev/video12:/dev/video12
+    restart: unless-stopped
+    networks:
+      - medianet
+
+  # ===========================================
+  # Request Management
+  # ===========================================
+  jellyseerr:
+    image: fallenbagel/jellyseerr:latest
+    container_name: jellyseerr
+    environment:
+      - LOG_LEVEL=debug
+      - TZ=${TZ}
+    ports:
+      - "5055:5055"
+    volumes:
+      - ${CONFIG_PATH}/jellyseerr:/app/config
+    restart: unless-stopped
+    networks:
+      - medianet
+    depends_on:
+      - jellyfin
+      - sonarr
+      - radarr
+
+  # ===========================================
+  # IPTV Proxy for Jellyfin
+  # ===========================================
+  threadfin:
+    image: fyb3roptik/threadfin:latest
+    container_name: threadfin
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - ${CONFIG_PATH}/threadfin:/home/threadfin/conf
+    ports:
+      - "34400:34400"
+    restart: unless-stopped
+    networks:
+      - medianet
+
+  # ===========================================
+  # Dashboard & Management
+  # ===========================================
+  heimdall:
+    image: lscr.io/linuxserver/heimdall:latest
+    container_name: heimdall
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - ${CONFIG_PATH}/heimdall:/config
+    ports:
+      - "80:80"
+      - "443:443"
+    restart: unless-stopped
+    networks:
+      - medianet
+
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: portainer
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ${CONFIG_PATH}/portainer:/data
+    ports:
+      - "9000:9000"
+    restart: unless-stopped
+    networks:
+      - medianet
+
+  # ===========================================
+  # System Monitoring
+  # ===========================================
+  netdata:
+    image: netdata/netdata:latest
+    container_name: netdata
+    hostname: mediahub
+    ports:
+      - "19999:19999"
+    restart: unless-stopped
+    cap_add:
+      - SYS_PTRACE
+    security_opt:
+      - apparmor:unconfined
+    volumes:
+      - ${CONFIG_PATH}/netdata:/etc/netdata
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - medianet
+
+  # ===========================================
+  # Network Security
+  # ===========================================
+  pihole:
+    image: pihole/pihole:latest
+    container_name: pihole
+    environment:
+      - TZ=${TZ}
+      - WEBPASSWORD=${PIHOLE_PASSWORD}
+    volumes:
+      - ${CONFIG_PATH}/pihole/etc:/etc/pihole
+      - ${CONFIG_PATH}/pihole/dnsmasq:/etc/dnsmasq.d
+    ports:
+      - "53:53/tcp"
+      - "53:53/udp"
+      - "8053:80/tcp" # Web interface on port 8053
+    restart: unless-stopped
+    networks:
+      - medianet
+
+  # ===========================================
+  # Reverse Proxy
+  # ===========================================
+  nginx-proxy-manager:
+    image: jc21/nginx-proxy-manager:latest
+    container_name: nginx-proxy-manager
+    ports:
+      - "81:81"   # Admin Web Port
+      - "8443:443" # HTTPS
+      - "8880:80"  # HTTP (avoiding conflict with heimdall)
+    volumes:
+      - ${CONFIG_PATH}/nginx-proxy-manager/data:/data
+      - ${CONFIG_PATH}/nginx-proxy-manager/letsencrypt:/etc/letsencrypt
+    restart: unless-stopped
+    networks:
+      - medianet
+
+  # ===========================================
+  # Disk Health Monitoring
+  # ===========================================
+  scrutiny:
+    image: ghcr.io/analogj/scrutiny:master-omnibus
+    container_name: scrutiny
+    cap_add:
+      - SYS_RAWIO
+    ports:
+      - "8085:8080"
+    volumes:
+      - ${CONFIG_PATH}/scrutiny:/opt/scrutiny/config
+      - /run/udev:/run/udev:ro
+    devices:
+      - /dev/sda:/dev/sda
+    restart: unless-stopped
+    networks:
+      - medianet
+
+  # ===========================================
+  # Backup Solution
+  # ===========================================
+  duplicati:
+    image: lscr.io/linuxserver/duplicati:latest
+    container_name: duplicati
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - ${CONFIG_PATH}/duplicati:/config
+      - ${BACKUP_PATH}:/backups
+      - ${CONFIG_PATH}:/source/config
+      - ${MEDIA_PATH}:/source/media:ro
+    ports:
+      - "8200:8200"
+    restart: unless-stopped
+    networks:
+      - medianet
+
+  # ===========================================
+  # Automatic Updates
+  # ===========================================
+  watchtower:
+    image: containrrr/watchtower:latest
+    container_name: watchtower
+    environment:
+      - TZ=${TZ}
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_SCHEDULE=0 0 4 * * 0
+      - WATCHTOWER_NOTIFICATIONS=shoutrrr
+      - WATCHTOWER_NOTIFICATION_URL=${WATCHTOWER_NOTIFICATION_URL:-}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
+    networks:
+      - medianet
+
+  # ===========================================
+  # Media Statistics (Jellyfin)
+  # ===========================================
+  tautulli:
+    image: lscr.io/linuxserver/tautulli:latest
+    container_name: tautulli
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - ${CONFIG_PATH}/tautulli:/config
+    ports:
+      - "8181:8181"
+    restart: unless-stopped
+    networks:
+      - medianet
+
+  # ===========================================
+  # Automatic Archive Extraction
+  # ===========================================
+  unpackerr:
+    image: golift/unpackerr:latest
+    container_name: unpackerr
+    environment:
+      - TZ=${TZ}
+      - UN_SONARR_0_URL=http://sonarr:8989
+      - UN_SONARR_0_API_KEY=${SONARR_API_KEY:-}
+      - UN_RADARR_0_URL=http://radarr:7878
+      - UN_RADARR_0_API_KEY=${RADARR_API_KEY:-}
+      - UN_LIDARR_0_URL=http://lidarr:8686
+      - UN_LIDARR_0_API_KEY=${LIDARR_API_KEY:-}
+      - UN_READARR_0_URL=http://readarr:8787
+      - UN_READARR_0_API_KEY=${READARR_API_KEY:-}
+    volumes:
+      - ${DOWNLOAD_PATH}:/downloads
+    restart: unless-stopped
+    networks:
+      - medianet
+    depends_on:
+      - sonarr
+      - radarr
+
+  # ===========================================
+  # Modern Dashboard
+  # ===========================================
+  homarr:
+    image: ghcr.io/ajnart/homarr:latest
+    container_name: homarr
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - ${CONFIG_PATH}/homarr/configs:/app/data/configs
+      - ${CONFIG_PATH}/homarr/icons:/app/public/icons
+      - ${CONFIG_PATH}/homarr/data:/data
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    ports:
+      - "7575:7575"
+    restart: unless-stopped
+    networks:
+      - medianet
+
+  # ===========================================
+  # Service Monitoring
+  # ===========================================
+  uptime-kuma:
+    image: louislam/uptime-kuma:latest
+    container_name: uptime-kuma
+    volumes:
+      - ${CONFIG_PATH}/uptime-kuma:/app/data
+    ports:
+      - "3001:3001"
+    restart: unless-stopped
+    networks:
+      - medianet
+
+  # ===========================================
+  # Remote Access VPN
+  # ===========================================
+  wireguard:
+    image: lscr.io/linuxserver/wireguard:latest
+    container_name: wireguard
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+      - SERVERURL=${WIREGUARD_SERVERURL:-auto}
+      - SERVERPORT=${WIREGUARD_PORT:-51820}
+      - PEERS=${WIREGUARD_PEERS:-1}
+      - PEERDNS=auto
+      - INTERNAL_SUBNET=10.13.13.0
+    volumes:
+      - ${CONFIG_PATH}/wireguard:/config
+      - /lib/modules:/lib/modules
+    ports:
+      - "51820:51820/udp"
+    sysctls:
+      - net.ipv4.conf.all.src_valid_mark=1
+    restart: unless-stopped
+    networks:
+      - medianet
+
+  # ===========================================
+  # Centralized Notifications
+  # ===========================================
+  notifiarr:
+    image: golift/notifiarr:latest
+    container_name: notifiarr
+    environment:
+      - DN_API_KEY=${NOTIFIARR_API_KEY:-}
+      - TZ=${TZ}
+    volumes:
+      - ${CONFIG_PATH}/notifiarr:/config
+      - /var/run/utmp:/var/run/utmp
+    ports:
+      - "5454:5454"
+    restart: unless-stopped
+    networks:
+      - medianet
+
+  # ===========================================
+  # TRaSH Guides Sync (Quality Profiles)
+  # ===========================================
+  recyclarr:
+    image: ghcr.io/recyclarr/recyclarr:latest
+    container_name: recyclarr
+    environment:
+      - TZ=${TZ}
+    volumes:
+      - ${CONFIG_PATH}/recyclarr:/config
+    restart: unless-stopped
+    networks:
+      - medianet
+
+  # ===========================================
+  # Photo Gallery (Google Photos alternative)
+  # ===========================================
+  photoprism:
+    image: photoprism/photoprism:latest
+    container_name: photoprism
+    security_opt:
+      - seccomp:unconfined
+      - apparmor:unconfined
+    environment:
+      - PHOTOPRISM_ADMIN_USER=${PHOTOPRISM_ADMIN_USER:-admin}
+      - PHOTOPRISM_ADMIN_PASSWORD=${PHOTOPRISM_ADMIN_PASSWORD:?PHOTOPRISM_ADMIN_PASSWORD must be set in .env}
+      - PHOTOPRISM_AUTH_MODE=password
+      - PHOTOPRISM_SITE_URL=http://localhost:2342/
+      - PHOTOPRISM_ORIGINALS_LIMIT=5000
+      - PHOTOPRISM_HTTP_COMPRESSION=gzip
+      - PHOTOPRISM_LOG_LEVEL=info
+      - PHOTOPRISM_READONLY=false
+      - PHOTOPRISM_EXPERIMENTAL=false
+      - PHOTOPRISM_DISABLE_CHOWN=false
+      - PHOTOPRISM_DISABLE_WEBDAV=false
+      - PHOTOPRISM_DISABLE_SETTINGS=false
+      - PHOTOPRISM_DISABLE_TENSORFLOW=false
+      - PHOTOPRISM_DISABLE_FACES=false
+      - PHOTOPRISM_DISABLE_CLASSIFICATION=false
+      - PHOTOPRISM_DISABLE_RAW=false
+      - PHOTOPRISM_RAW_PRESETS=false
+      - PHOTOPRISM_JPEG_QUALITY=85
+      - PHOTOPRISM_DETECT_NSFW=false
+      - PHOTOPRISM_UPLOAD_NSFW=true
+      - PHOTOPRISM_DATABASE_DRIVER=sqlite
+      - PHOTOPRISM_SITE_CAPTION=MediaHub Photos
+      - PHOTOPRISM_SITE_DESCRIPTION=Photo Gallery
+      - PHOTOPRISM_SITE_AUTHOR=MediaHub
+      - TZ=${TZ}
+      - PHOTOPRISM_UID=${PUID}
+      - PHOTOPRISM_GID=${PGID}
+    working_dir: /photoprism
+    volumes:
+      - ${MEDIA_PATH}/photos/originals:/photoprism/originals
+      - ${MEDIA_PATH}/photos/import:/photoprism/import
+      - ${CONFIG_PATH}/photoprism:/photoprism/storage
+    ports:
+      - "2342:2342"
+    restart: unless-stopped
+    networks:
+      - medianet
+
+  # ===========================================
+  # Music Streaming Server (Spotify alternative)
+  # ===========================================
+  navidrome:
+    image: deluan/navidrome:latest
+    container_name: navidrome
+    user: "${PUID}:${PGID}"
+    environment:
+      - ND_SCANSCHEDULE=1h
+      - ND_LOGLEVEL=info
+      - ND_SESSIONTIMEOUT=24h
+      - ND_BASEURL=
+      - ND_ENABLETRANSCODINGCONFIG=true
+      - ND_TRANSCODINGCACHESIZE=150MiB
+      - ND_IMAGECACHESIZE=100MiB
+      - ND_AUTOIMPORTPLAYLISTS=true
+    volumes:
+      - ${CONFIG_PATH}/navidrome:/data
+      - ${MEDIA_PATH}/music:/music:ro
+    ports:
+      - "4533:4533"
+    restart: unless-stopped
+    networks:
+      - medianet
+
+  # ===========================================
+  # Comics/Manga Server
+  # ===========================================
+  komga:
+    image: gotson/komga:latest
+    container_name: komga
+    user: "${PUID}:${PGID}"
+    environment:
+      - TZ=${TZ}
+    volumes:
+      - ${CONFIG_PATH}/komga:/config
+      - ${MEDIA_PATH}/comics:/data
+    ports:
+      - "25600:25600"
+    restart: unless-stopped
+    networks:
+      - medianet
+
+  # ===========================================
+  # Automated Comics Management (like Sonarr for comics)
+  # ===========================================
+  mylar3:
+    image: lscr.io/linuxserver/mylar3:latest
+    container_name: mylar3
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - ${CONFIG_PATH}/mylar3:/config
+      - ${MEDIA_PATH}/comics:/comics
+      - ${DOWNLOAD_PATH}:/downloads
+    ports:
+      - "8090:8090"
+    restart: unless-stopped
+    networks:
+      - medianet
+
+  # ===========================================
+  # SMTP Server (Email to Notifications Gateway)
+  # ===========================================
+  mailrise:
+    image: yoryan/mailrise:latest
+    container_name: mailrise
+    environment:
+      - TZ=${TZ}
+    volumes:
+      - ${CONFIG_PATH}/mailrise/mailrise.conf:/etc/mailrise.conf:ro
+    ports:
+      - "8025:8025"  # SMTP port
+    restart: unless-stopped
+    networks:
+      - medianet
+
+  # ===========================================
+  # Push Notification Server (Self-hosted)
+  # ===========================================
+  gotify:
+    image: gotify/server:latest
+    container_name: gotify
+    environment:
+      - TZ=${TZ}
+      - GOTIFY_DEFAULTUSER_NAME=${GOTIFY_USER:-admin}
+      - GOTIFY_DEFAULTUSER_PASS=${GOTIFY_PASSWORD:?GOTIFY_PASSWORD must be set in .env}
+    volumes:
+      - ${CONFIG_PATH}/gotify:/app/data
+    ports:
+      - "8070:80"
+    restart: unless-stopped
+    networks:
+      - medianet
+
+  # ===========================================
+  # Universal Notification API (70+ services)
+  # ===========================================
+  apprise-api:
+    image: caronc/apprise:latest
+    container_name: apprise-api
+    environment:
+      - TZ=${TZ}
+      - APPRISE_STATEFUL_MODE=simple
+      - APPRISE_CONFIG_LOCK=no
+    volumes:
+      - ${CONFIG_PATH}/apprise:/config
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    networks:
+      - medianet
+
+  # ===========================================
+  # System Notification Aggregator
+  # ===========================================
+  ntfy:
+    image: binwiederhier/ntfy:latest
+    container_name: ntfy
+    command:
+      - serve
+    environment:
+      - TZ=${TZ}
+      - NTFY_BASE_URL=http://localhost:8071
+      - NTFY_CACHE_FILE=/var/lib/ntfy/cache.db
+      - NTFY_AUTH_FILE=/var/lib/ntfy/auth.db
+      - NTFY_AUTH_DEFAULT_ACCESS=deny-all
+      - NTFY_BEHIND_PROXY=false
+      - NTFY_ENABLE_LOGIN=true
+    volumes:
+      - ${CONFIG_PATH}/ntfy:/var/lib/ntfy
+    ports:
+      - "8071:80"
+    restart: unless-stopped
+    networks:
+      - medianet
+
+  # ===========================================
+  # TV Administration Interface
+  # ===========================================
+  tv-admin:
+    image: python:3.11-slim
+    container_name: tv-admin
+    command: python /app/server.py
+    environment:
+      - TZ=${TZ}
+      - INSTALL_DIR=/opt/mediahub
+    volumes:
+      - ${CONFIG_PATH}/tv-admin:/app
+      - ${MEDIA_PATH}:/mnt/media:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${CONFIG_PATH}:/opt/mediahub/config:ro
+      - /sys/class/thermal:/sys/class/thermal:ro
+      - /proc/meminfo:/proc/meminfo:ro
+    ports:
+      - "8091:8090"
+    restart: unless-stopped
+    networks:
+      - medianet
+    depends_on:
+      - gotify
+
+networks:
+  medianet:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

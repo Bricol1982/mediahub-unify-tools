@@ -1,0 +1,57 @@
+# Environment files with secrets
+.env
+*.env.local
+
+# Configuration directories (may contain API keys)
+config/
+data/
+
+# Logs
+*.log
+logs/
+
+# System files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# IDE
+.vscode/
+.idea/
+*.sublime-*
+
+# Temporary files
+*.tmp
+*.bak
+*.backup
+
+# Docker volumes data
+volumes/
+
+# Backup files
+*.tar.gz
+*.zip
+backups/
+
+# SSL certificates
+*.pem
+*.key
+*.crt
+*.csr
+
+# Sensitive files
+.env
+*.key
+*.pem
+*.crt
+config/*/api_key*
+config/*/password*
+
+# Runtime data
+config/*/logs/
+config/*/cache/
+*.db
+*.db-shm
+*.db-wal
