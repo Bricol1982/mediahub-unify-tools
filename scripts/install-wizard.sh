@@ -737,12 +737,69 @@ run_installation() {
             apt-get install -y -qq docker-compose-plugin > /dev/null 2>&1 || true
         fi
 
-        if [[ "$USE_EXTERNAL_HDD" == true ]]; then
-            show_progress 30 "$MSG_HDD..."
-            save_state "HDD_FORMAT"
-            # In production, actual formatting would happen here
-            mkdir -p /mnt/media
-            sleep 2
+        # Optimize Docker for Raspberry Pi (prevent timeouts)
+        show_progress 27 "Optimizing Docker configuration..."
+        mkdir -p /etc/docker
+        cat > /etc/docker/daemon.json << 'DOCKERCFG'
+{
+  "max-concurrent-downloads": 2,
+  "max-concurrent-uploads": 2,
+  "max-download-attempts": 10,
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "10m",
+    "max-file": "3"
+  },
+  "storage-driver": "overlay2"
+}
+DOCKERCFG
+        systemctl restart docker > /dev/null 2>&1 || true
+        sleep 3
+
+        show_progress 30 "$MSG_HDD..."
+        save_state "HDD_FORMAT"
+        mkdir -p /mnt/media
+
+        if [[ "$USE_EXTERNAL_HDD" == true ]] && [[ -n "$SELECTED_DRIVE" ]]; then
+            # Prepare external HDD
+            local partition="${SELECTED_DRIVE}1"
+
+            # Create partition if needed
+            if [[ ! -b "$partition" ]]; then
+                parted -s "$SELECTED_DRIVE" mklabel gpt > /dev/null 2>&1 || true
+                parted -s "$SELECTED_DRIVE" mkpart primary ext4 0% 100% > /dev/null 2>&1 || true
+                sleep 2
+                partition="${SELECTED_DRIVE}1"
+            fi
+
+            # Format if not ext4
+            local fs_type=$(blkid -o value -s TYPE "$partition" 2>/dev/null || echo "")
+            if [[ "$fs_type" != "ext4" ]]; then
+                mkfs.ext4 -F -L mediahub "$partition" > /dev/null 2>&1 || true
+            fi
+
+            # Mount the drive
+            mount "$partition" /mnt/media > /dev/null 2>&1 || true
+
+            # Add to fstab
+            local uuid=$(blkid -s UUID -o value "$partition" 2>/dev/null || echo "")
+            if [[ -n "$uuid" ]] && ! grep -q "$uuid" /etc/fstab 2>/dev/null; then
+                echo "UUID=$uuid /mnt/media ext4 defaults,noatime,nofail 0 2" >> /etc/fstab
+            fi
+
+            # Create media directories
+            mkdir -p /mnt/media/{library/{tv,movies,music,books,comics,photos},downloads}
+            mkdir -p /mnt/media/library/photos/{originals,import}
+            chown -R ${SUDO_USER:-pi}:${SUDO_USER:-pi} /mnt/media
+            chmod -R 755 /mnt/media
+
+            # Save device for Scrutiny
+            export SCRUTINY_DEVICE="$SELECTED_DRIVE"
+        else
+            # Create directories anyway
+            mkdir -p /mnt/media/{library/{tv,movies,music,books,comics,photos},downloads}
+            mkdir -p /mnt/media/library/photos/{originals,import}
+            chown -R ${SUDO_USER:-pi}:${SUDO_USER:-pi} /mnt/media 2>/dev/null || true
         fi
 
         show_progress 35 "$MSG_CREATING_DIRS"
@@ -767,13 +824,35 @@ run_installation() {
         show_progress 60 "$MSG_PULLING"
         save_state "DOCKER_PULL"
         cd "$INSTALL_DIR"
-        if [[ "$HARDWARE_MODE" == "limited" ]]; then
-            # Pi3 mode - use limited compose file
-            docker compose -f docker-compose.pi3.yml pull > /dev/null 2>&1 || true
-        else
-            # Full mode - use standard compose file
-            docker compose pull > /dev/null 2>&1 || true
-        fi
+
+        # Pull images with retry logic (max 3 attempts)
+        local pull_retries=0
+        local pull_max=3
+        local pull_done=false
+
+        while [[ $pull_retries -lt $pull_max ]] && [[ "$pull_done" == "false" ]]; do
+            pull_retries=$((pull_retries + 1))
+
+            if [[ "$HARDWARE_MODE" == "limited" ]]; then
+                # Pi3 mode - use limited compose file
+                if docker compose -f docker-compose.pi3.yml pull 2>&1 | grep -q "error\|timeout"; then
+                    sleep 10
+                else
+                    pull_done=true
+                fi
+            else
+                # Full mode - use standard compose file
+                if docker compose pull 2>&1 | grep -q "error\|timeout"; then
+                    sleep 10
+                else
+                    pull_done=true
+                fi
+            fi
+
+            if [[ "$pull_done" == "false" ]] && [[ $pull_retries -lt $pull_max ]]; then
+                show_progress $((60 + pull_retries * 5)) "Retrying image download ($pull_retries/$pull_max)..."
+            fi
+        done
 
         show_progress 80 "$MSG_STARTING_SERVICES"
         save_state "START"
@@ -916,6 +995,9 @@ ENABLE_MONITORING=$([[ "$FEATURES" == *"MONITORING"* ]] && echo "true" || echo "
 
 # Hardware Mode
 HARDWARE_MODE=${HARDWARE_MODE:-full}
+
+# Scrutiny Disk Monitoring (set to your external HDD device)
+SCRUTINY_DEVICE=${SCRUTINY_DEVICE:-/dev/sda}
 EOF
 
     # Create backup directory

@@ -256,19 +256,19 @@ services:
       - radarr
 
   # ===========================================
-  # IPTV Proxy for Jellyfin
-  # NOTE: Using xTeVe instead of Threadfin for ARM64 compatibility
+  # IPTV/Virtual Channels for Jellyfin
+  # ErsatzTV - ARM64 compatible alternative to Threadfin/xTeVe
   # ===========================================
-  xteve:
-    image: dnsforge/xteve:latest
-    container_name: xteve
+  ersatztv:
+    image: jasongdove/ersatztv:latest
+    container_name: ersatztv
     environment:
       - TZ=${TZ}
     volumes:
-      - ${CONFIG_PATH}/xteve:/home/xteve/conf
-      - ${CONFIG_PATH}/xteve/tmp:/tmp/xteve
+      - ${CONFIG_PATH}/ersatztv:/root/.local/share/ersatztv
+      - ${MEDIA_PATH}:/media:ro
     ports:
-      - "34400:34400"
+      - "8409:8409"
     restart: unless-stopped
     networks:
       - medianet
@@ -368,6 +368,8 @@ services:
 
   # ===========================================
   # Disk Health Monitoring
+  # NOTE: Set SCRUTINY_DEVICE in .env (e.g., /dev/sda, /dev/sdb)
+  # Run 'lsblk' to find your external HDD device path
   # ===========================================
   scrutiny:
     image: ghcr.io/analogj/scrutiny:master-omnibus
@@ -380,7 +382,7 @@ services:
       - ${CONFIG_PATH}/scrutiny:/opt/scrutiny/config
       - /run/udev:/run/udev:ro
     devices:
-      - /dev/sda:/dev/sda
+      - ${SCRUTINY_DEVICE:-/dev/sda}:${SCRUTINY_DEVICE:-/dev/sda}
     restart: unless-stopped
     networks:
       - medianet
@@ -533,21 +535,23 @@ services:
 
   # ===========================================
   # Centralized Notifications
+  # NOTE: Notifiarr requires API key from notifiarr.com
+  # Uncomment after obtaining API key and setting NOTIFIARR_API_KEY in .env
   # ===========================================
-  notifiarr:
-    image: golift/notifiarr:latest
-    container_name: notifiarr
-    environment:
-      - DN_API_KEY=${NOTIFIARR_API_KEY:-}
-      - TZ=${TZ}
-    volumes:
-      - ${CONFIG_PATH}/notifiarr:/config
-      - /var/run/utmp:/var/run/utmp
-    ports:
-      - "5454:5454"
-    restart: unless-stopped
-    networks:
-      - medianet
+  # notifiarr:
+  #   image: golift/notifiarr:latest
+  #   container_name: notifiarr
+  #   environment:
+  #     - DN_API_KEY=${NOTIFIARR_API_KEY:-}
+  #     - TZ=${TZ}
+  #   volumes:
+  #     - ${CONFIG_PATH}/notifiarr:/config
+  #     - /var/run/utmp:/var/run/utmp
+  #   ports:
+  #     - "5454:5454"
+  #   restart: unless-stopped
+  #   networks:
+  #     - medianet
 
   # ===========================================
   # TRaSH Guides Sync (Quality Profiles)
@@ -617,7 +621,6 @@ services:
   navidrome:
     image: deluan/navidrome:latest
     container_name: navidrome
-    user: "${PUID}:${PGID}"
     environment:
       - ND_SCANSCHEDULE=1h
       - ND_LOGLEVEL=info
@@ -627,6 +630,8 @@ services:
       - ND_TRANSCODINGCACHESIZE=150MiB
       - ND_IMAGECACHESIZE=100MiB
       - ND_AUTOIMPORTPLAYLISTS=true
+      - ND_UID=${PUID}
+      - ND_GID=${PGID}
     volumes:
       - ${CONFIG_PATH}/navidrome:/data
       - ${MEDIA_PATH}/music:/music:ro
@@ -676,19 +681,21 @@ services:
 
   # ===========================================
   # SMTP Server (Email to Notifications Gateway)
+  # NOTE: Requires mailrise.conf configuration file
+  # Uncomment after creating config at ${CONFIG_PATH}/mailrise/mailrise.conf
   # ===========================================
-  mailrise:
-    image: yoryan/mailrise:latest
-    container_name: mailrise
-    environment:
-      - TZ=${TZ}
-    volumes:
-      - ${CONFIG_PATH}/mailrise/mailrise.conf:/etc/mailrise.conf:ro
-    ports:
-      - "8025:8025"  # SMTP port
-    restart: unless-stopped
-    networks:
-      - medianet
+  # mailrise:
+  #   image: yoryan/mailrise:latest
+  #   container_name: mailrise
+  #   environment:
+  #     - TZ=${TZ}
+  #   volumes:
+  #     - ${CONFIG_PATH}/mailrise/mailrise.conf:/etc/mailrise.conf:ro
+  #   ports:
+  #     - "8025:8025"  # SMTP port
+  #   restart: unless-stopped
+  #   networks:
+  #     - medianet
 
   # ===========================================
   # Push Notification Server (Self-hosted)

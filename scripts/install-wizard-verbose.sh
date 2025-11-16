@@ -526,17 +526,96 @@ run_installation() {
         success "Docker Compose plugin installed"
     fi
 
+    step "Optimizing Docker configuration for Raspberry Pi..."
+    mkdir -p /etc/docker
+    cat > /etc/docker/daemon.json << 'DOCKERCONFIG'
+{
+  "max-concurrent-downloads": 2,
+  "max-concurrent-uploads": 2,
+  "max-download-attempts": 10,
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "10m",
+    "max-file": "3"
+  },
+  "storage-driver": "overlay2"
+}
+DOCKERCONFIG
+    substep "Reduced concurrent downloads to 2"
+    substep "Increased retry attempts to 10"
+    substep "Added log rotation (10MB x 3 files)"
+
+    step "Restarting Docker with new configuration..."
+    systemctl restart docker
+    sleep 3
+    success "Docker optimized for stable image downloads"
+
     # ========== EXTERNAL HDD ==========
-    if [[ "$USE_EXTERNAL_HDD" == true ]]; then
-        phase "EXTERNAL HDD SETUP"
-        save_state "HDD_FORMAT"
+    phase "EXTERNAL HDD SETUP"
+    save_state "HDD_FORMAT"
 
-        step "Creating media mount point..."
-        mkdir -p /mnt/media
-        success "Mount point created: /mnt/media"
+    step "Creating media mount point..."
+    mkdir -p /mnt/media
+    success "Mount point created: /mnt/media"
 
-        warning "HDD formatting skipped (manual setup recommended)"
-        info "You can mount your drive to /mnt/media later"
+    if [[ "$USE_EXTERNAL_HDD" == true ]] && [[ -n "$SELECTED_DRIVE" ]]; then
+        step "Preparing external HDD: $SELECTED_DRIVE"
+
+        # Check if partition exists
+        local partition="${SELECTED_DRIVE}1"
+        if [[ ! -b "$partition" ]]; then
+            substep "Creating partition on $SELECTED_DRIVE..."
+            parted -s "$SELECTED_DRIVE" mklabel gpt
+            parted -s "$SELECTED_DRIVE" mkpart primary ext4 0% 100%
+            sleep 2
+            partition="${SELECTED_DRIVE}1"
+            success "Partition created: $partition"
+        fi
+
+        # Check filesystem
+        local fs_type=$(blkid -o value -s TYPE "$partition" 2>/dev/null || echo "")
+        if [[ "$fs_type" != "ext4" ]]; then
+            substep "Formatting $partition as ext4..."
+            mkfs.ext4 -F -L mediahub "$partition" 2>&1 | head -20
+            success "Partition formatted as ext4"
+        else
+            success "Partition already formatted as ext4"
+        fi
+
+        # Mount the drive
+        substep "Mounting $partition to /mnt/media..."
+        mount "$partition" /mnt/media
+        success "HDD mounted to /mnt/media"
+
+        # Add to fstab for auto-mount
+        local uuid=$(blkid -s UUID -o value "$partition")
+        if ! grep -q "$uuid" /etc/fstab; then
+            substep "Adding to /etc/fstab for auto-mount..."
+            echo "UUID=$uuid /mnt/media ext4 defaults,noatime,nofail 0 2" >> /etc/fstab
+            success "Auto-mount configured"
+        fi
+
+        # Create media directories
+        substep "Creating media directory structure..."
+        mkdir -p /mnt/media/{library/{tv,movies,music,books,comics,photos},downloads}
+        mkdir -p /mnt/media/library/photos/{originals,import}
+        chown -R ${SUDO_USER:-pi}:${SUDO_USER:-pi} /mnt/media
+        chmod -R 755 /mnt/media
+        success "Media directories created"
+
+        # Save device for Scrutiny
+        SCRUTINY_DEVICE="$SELECTED_DRIVE"
+
+        # Show disk info
+        df -h /mnt/media
+    else
+        warning "No external HDD selected"
+        info "Using default paths (ensure /mnt/media is mounted)"
+
+        # Create directories anyway
+        mkdir -p /mnt/media/{library/{tv,movies,music,books,comics,photos},downloads}
+        mkdir -p /mnt/media/library/photos/{originals,import}
+        chown -R ${SUDO_USER:-pi}:${SUDO_USER:-pi} /mnt/media 2>/dev/null || true
     fi
 
     # ========== PROJECT STRUCTURE ==========
@@ -636,25 +715,72 @@ EOF
 
     cd "$INSTALL_DIR"
 
+    # Function to pull images with retry logic
+    pull_images_with_retry() {
+        local compose_file="$1"
+        local max_retries=3
+        local retry_count=0
+        local pull_success=false
+
+        while [[ $retry_count -lt $max_retries ]] && [[ "$pull_success" == "false" ]]; do
+            retry_count=$((retry_count + 1))
+
+            if [[ $retry_count -gt 1 ]]; then
+                warning "Retry attempt $retry_count of $max_retries..."
+                sleep 10
+            fi
+
+            if [[ -n "$compose_file" ]]; then
+                if docker compose -f "$compose_file" pull 2>&1 | tee /tmp/docker_pull.log | grep -E "(Pulling|Downloaded|Pull complete|error)" | head -200; then
+                    if ! grep -q "error\|timeout\|TLS handshake" /tmp/docker_pull.log; then
+                        pull_success=true
+                    fi
+                fi
+            else
+                if docker compose pull 2>&1 | tee /tmp/docker_pull.log | grep -E "(Pulling|Downloaded|Pull complete|error)" | head -200; then
+                    if ! grep -q "error\|timeout\|TLS handshake" /tmp/docker_pull.log; then
+                        pull_success=true
+                    fi
+                fi
+            fi
+
+            if [[ "$pull_success" == "false" ]] && [[ $retry_count -lt $max_retries ]]; then
+                warning "Some images failed to download, retrying..."
+            fi
+        done
+
+        rm -f /tmp/docker_pull.log
+        return $([[ "$pull_success" == "true" ]] && echo 0 || echo 1)
+    }
+
     if [[ "$HARDWARE_MODE" == "limited" ]]; then
         step "Using Pi3 limited mode configuration..."
         info "This will pull fewer images to conserve resources"
 
         if [[ -f docker-compose.pi3.yml ]]; then
             step "Pulling images (this may take 10-30 minutes)..."
-            docker compose -f docker-compose.pi3.yml pull 2>&1 | grep -E "(Pulling|Downloaded|Pull complete)" | head -100
-            success "Docker images pulled (limited mode)"
+            info "Automatic retry on timeout enabled (max 3 attempts)"
+            if pull_images_with_retry "docker-compose.pi3.yml"; then
+                success "Docker images pulled (limited mode)"
+            else
+                warning "Some images may have failed, continuing anyway..."
+            fi
         else
             warning "docker-compose.pi3.yml not found"
             info "Will use standard compose file"
-            docker compose pull 2>&1 | grep -E "(Pulling|Downloaded|Pull complete)" | head -100
+            pull_images_with_retry ""
         fi
     else
         step "Using full mode configuration..."
         step "Pulling all Docker images (this may take 15-45 minutes)..."
+        info "Automatic retry on timeout enabled (max 3 attempts)"
         info "Progress will be shown below..."
-        docker compose pull 2>&1 | grep -E "(Pulling|Downloaded|Pull complete)" | head -200
-        success "Docker images pulled (full mode)"
+        if pull_images_with_retry ""; then
+            success "Docker images pulled (full mode)"
+        else
+            warning "Some images may have failed to download"
+            info "Installation will continue - missing images will be pulled on container start"
+        fi
     fi
 
     step "Listing downloaded images..."
@@ -829,6 +955,9 @@ ENABLE_MONITORING=$([[ "$FEATURES" == *"MONITORING"* ]] && echo "true" || echo "
 
 # Hardware Mode
 HARDWARE_MODE=${HARDWARE_MODE:-full}
+
+# Scrutiny Disk Monitoring (set to your external HDD device)
+SCRUTINY_DEVICE=${SCRUTINY_DEVICE:-/dev/sda}
 EOF
 
     # Create backup directory
