@@ -788,10 +788,11 @@ INSTALL_DIR=$INSTALL_DIR
 CONFIG_PATH=$INSTALL_DIR/config
 MEDIA_PATH=/mnt/media/library
 DOWNLOAD_PATH=/mnt/media/downloads
+BACKUP_PATH=$INSTALL_DIR/backups
 
 # VPN Configuration
-VPN_SERVICE_PROVIDER=${VPN_SERVICE_PROVIDER:-protonvpn}
-VPN_TYPE=${VPN_TYPE:-openvpn}
+VPN_SERVICE_PROVIDER=${VPN_SERVICE_PROVIDER:-none}
+VPN_TYPE=${VPN_TYPE:-none}
 
 # OpenVPN Credentials
 OPENVPN_USER=${OPENVPN_USER:-}
@@ -815,6 +816,7 @@ PHOTOPRISM_ADMIN_USER=admin
 PHOTOPRISM_ADMIN_PASSWORD=$PHOTOPRISM_PASSWORD
 GOTIFY_USER=admin
 GOTIFY_PASSWORD=$GOTIFY_PASSWORD
+PIHOLE_PASSWORD=$(openssl rand -base64 12 | tr -dc 'a-zA-Z0-9' | head -c 12)
 
 # Security
 MASTER_PASSWORD_HASH=$(echo -n "$MASTER_PASSWORD" | sha256sum | cut -d' ' -f1)
@@ -828,6 +830,9 @@ ENABLE_MONITORING=$([[ "$FEATURES" == *"MONITORING"* ]] && echo "true" || echo "
 # Hardware Mode
 HARDWARE_MODE=${HARDWARE_MODE:-full}
 EOF
+
+    # Create backup directory
+    mkdir -p "$INSTALL_DIR/backups" 2>/dev/null || true
 
     info "Environment file contents written"
 }
