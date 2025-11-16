@@ -730,22 +730,32 @@ EOF
                 sleep 10
             fi
 
+            info "Attempt $retry_count: Starting image download..."
+            local pull_exit_code=0
+
             if [[ -n "$compose_file" ]]; then
-                if docker compose -f "$compose_file" pull 2>&1 | tee /tmp/docker_pull.log | grep -E "(Pulling|Downloaded|Pull complete|error)" | head -200; then
-                    if ! grep -q "error\|timeout\|TLS handshake" /tmp/docker_pull.log; then
-                        pull_success=true
-                    fi
-                fi
+                # Use timeout to prevent hanging, run in foreground and wait for completion
+                # Show progress but also log for error checking
+                timeout 1800 docker compose -f "$compose_file" pull 2>&1 | tee /tmp/docker_pull.log | grep -E "(Pulling|Pull complete|Downloaded|Already exists|error|failed)" | head -300 || pull_exit_code=$?
             else
-                if docker compose pull 2>&1 | tee /tmp/docker_pull.log | grep -E "(Pulling|Downloaded|Pull complete|error)" | head -200; then
-                    if ! grep -q "error\|timeout\|TLS handshake" /tmp/docker_pull.log; then
-                        pull_success=true
-                    fi
-                fi
+                # Use timeout to prevent hanging, run in foreground and wait for completion
+                # Show progress but also log for error checking
+                timeout 1800 docker compose pull 2>&1 | tee /tmp/docker_pull.log | grep -E "(Pulling|Pull complete|Downloaded|Already exists|error|failed)" | head -300 || pull_exit_code=$?
             fi
 
-            if [[ "$pull_success" == "false" ]] && [[ $retry_count -lt $max_retries ]]; then
-                warning "Some images failed to download, retrying..."
+            # Check if pull was successful
+            if [[ $pull_exit_code -eq 0 ]]; then
+                pull_success=true
+                info "All images downloaded successfully"
+            elif grep -q "error\|timeout\|TLS handshake\|failed" /tmp/docker_pull.log 2>/dev/null; then
+                warning "Errors detected during download"
+                if [[ $retry_count -lt $max_retries ]]; then
+                    warning "Will retry in 10 seconds..."
+                fi
+            else
+                # Exit code non-zero but no clear error - might be partial success
+                warning "Pull completed with warnings (exit code: $pull_exit_code)"
+                pull_success=true
             fi
         done
 
@@ -792,20 +802,49 @@ EOF
     save_state "START"
 
     step "Starting all services..."
+    info "This will pull any missing images and start containers..."
+    info "Please wait, this may take several minutes on first run..."
+
     if [[ "$HARDWARE_MODE" == "limited" ]]; then
-        docker compose -f docker-compose.pi3.yml up -d 2>&1 | head -50
+        docker compose -f docker-compose.pi3.yml up -d 2>&1 | tail -100
     else
-        docker compose up -d 2>&1 | head -50
+        docker compose up -d 2>&1 | tail -100
     fi
     success "Docker compose up command executed"
 
-    step "Waiting for containers to initialize (30 seconds)..."
-    for i in {1..30}; do
-        echo -ne "\r  Progress: $i/30 seconds"
-        sleep 1
+    step "Waiting for images to download and containers to start..."
+    local wait_count=0
+    local max_wait=300  # 5 minutes max wait
+    local containers_ready=false
+    local last_count=0
+
+    while [[ $wait_count -lt $max_wait ]] && [[ "$containers_ready" == "false" ]]; do
+        local running=$(docker ps --format '{{.Names}}' 2>/dev/null | wc -l)
+
+        # Check if docker compose is still pulling images
+        local still_pulling=false
+        if docker compose ps 2>&1 | grep -q "Pulling"; then
+            still_pulling=true
+        fi
+
+        # We're ready when we have a stable number of containers and not pulling
+        if [[ $running -gt 15 ]] && [[ "$still_pulling" == "false" ]] && [[ $running -eq $last_count ]]; then
+            containers_ready=true
+        else
+            echo -ne "\r  Containers running: $running | Elapsed: ${wait_count}s / ${max_wait}s    "
+            sleep 10
+            wait_count=$((wait_count + 10))
+            last_count=$running
+        fi
     done
     echo ""
-    success "Initial wait complete"
+
+    if [[ "$containers_ready" == "true" ]]; then
+        success "All containers are running"
+    else
+        warning "Timeout reached, some containers may still be initializing"
+        info "Checking current status..."
+    fi
 
     step "Checking container status..."
     if [[ "$HARDWARE_MODE" == "limited" ]]; then
@@ -820,16 +859,37 @@ EOF
     step "Container health check..."
     docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | head -50
 
+    # Additional wait if containers are still pulling
+    if [[ $running_count -lt 15 ]]; then
+        warning "Fewer containers than expected ($running_count). Some may still be downloading..."
+        step "Waiting additional 2 minutes for slow services..."
+        for i in {1..24}; do
+            local current=$(docker ps --format '{{.Names}}' | wc -l)
+            echo -ne "\r  Progress: $((i*5))/120 seconds | Running: $current containers    "
+            sleep 5
+        done
+        echo ""
+        running_count=$(docker ps --format '{{.Names}}' | wc -l)
+        success "Now $running_count containers running"
+    fi
+
     # ========== POST INSTALL ==========
     phase "POST-INSTALLATION SETUP"
     save_state "POST_CONFIG"
 
-    step "Running post-install configuration..."
-    if [[ -f "$INSTALL_DIR/scripts/post-install-setup.sh" ]]; then
-        bash "$INSTALL_DIR/scripts/post-install-setup.sh" 2>&1 | head -50 || true
-        success "Post-install script executed"
+    # Only run post-install if we have enough containers running
+    if [[ $running_count -lt 10 ]]; then
+        warning "Not enough containers running ($running_count). Skipping post-install setup."
+        info "You can run post-install setup manually later with:"
+        info "  sudo bash $INSTALL_DIR/scripts/post-install-setup.sh"
     else
-        warning "post-install-setup.sh not found"
+        step "Running post-install configuration..."
+        if [[ -f "$INSTALL_DIR/scripts/post-install-setup.sh" ]]; then
+            bash "$INSTALL_DIR/scripts/post-install-setup.sh" 2>&1 | head -100 || true
+            success "Post-install script executed"
+        else
+            warning "post-install-setup.sh not found"
+        fi
     fi
 
     # ========== FEATURES ==========
