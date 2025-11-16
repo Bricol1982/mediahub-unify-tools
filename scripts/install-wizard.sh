@@ -688,16 +688,28 @@ run_installation() {
 
         show_progress 15 "$MSG_CREATING_DIRS"
         save_state "DEPS"
+        # Install basic dependencies first
         apt-get install -y -qq \
-            docker.io docker-compose curl wget git jq \
-            openssl gnupg2 software-properties-common \
-            > /dev/null 2>&1
+            curl wget git jq openssl gnupg2 ca-certificates \
+            > /dev/null 2>&1 || true
+
+        show_progress 20 "Installing Docker..."
+        save_state "DOCKER_INSTALL"
+        # Install Docker using official convenience script (works on Raspberry Pi)
+        if ! command -v docker &> /dev/null; then
+            curl -fsSL https://get.docker.com | sh > /dev/null 2>&1 || true
+        fi
 
         show_progress 25 "$MSG_CONFIGURING"
         save_state "DOCKER"
-        systemctl enable docker > /dev/null 2>&1
-        systemctl start docker > /dev/null 2>&1
+        systemctl enable docker > /dev/null 2>&1 || true
+        systemctl start docker > /dev/null 2>&1 || true
         usermod -aG docker "${SUDO_USER:-pi}" 2>/dev/null || true
+
+        # Install docker-compose plugin if not available
+        if ! docker compose version &> /dev/null; then
+            apt-get install -y -qq docker-compose-plugin > /dev/null 2>&1 || true
+        fi
 
         if [[ "$USE_EXTERNAL_HDD" == true ]]; then
             show_progress 30 "$MSG_HDD..."
