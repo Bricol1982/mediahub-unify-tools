@@ -2,8 +2,6 @@
 # Start all MediaHub services
 # This script is copied to /opt/mediahub/start.sh during installation
 
-set -e
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALL_DIR="${SCRIPT_DIR%/scripts}"
 
@@ -20,6 +18,7 @@ fi
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
+RED='\033[0;31m'
 NC='\033[0m'
 
 echo -e "${BLUE}=========================================${NC}"
@@ -47,9 +46,63 @@ if ! mountpoint -q /mnt/media 2>/dev/null; then
     fi
 fi
 
-# Start services
+# Check for Docker layer errors and clean if necessary
+echo "Checking Docker health..."
+if docker compose config > /dev/null 2>&1; then
+    echo -e "${GREEN}✓ Docker Compose configuration valid${NC}"
+else
+    echo -e "${RED}✗ Docker Compose configuration error${NC}"
+    echo "Please check your docker-compose.yml and .env files"
+    exit 1
+fi
+
+# Pre-check: verify if images exist or need to be pulled
+echo "Verifying Docker images..."
+missing_images=false
+
+# Quick test to see if there are layer errors
+if docker compose ps 2>&1 | grep -q "layer does not exist\|no such image"; then
+    echo -e "${RED}✗ Docker layer corruption detected${NC}"
+    echo ""
+    echo "This usually happens when Docker data was partially deleted."
+    echo "To fix this, run:"
+    echo ""
+    echo -e "  ${YELLOW}sudo systemctl stop docker${NC}"
+    echo -e "  ${YELLOW}sudo rm -rf /var/lib/docker${NC}"
+    echo -e "  ${YELLOW}sudo mkdir -p /var/lib/docker${NC}"
+    echo -e "  ${YELLOW}sudo systemctl start docker${NC}"
+    echo ""
+    echo "Then re-run the installation wizard to download images properly:"
+    echo -e "  ${YELLOW}sudo ./scripts/install-wizard-verbose.sh${NC}"
+    exit 1
+fi
+
+# Start services with error handling
 echo "Starting Docker containers..."
-docker compose up -d
+if ! docker compose up -d 2>&1 | tee /tmp/docker_start.log; then
+    # Check for specific errors
+    if grep -q "layer does not exist\|no such image" /tmp/docker_start.log; then
+        echo ""
+        echo -e "${RED}✗ Docker image corruption detected${NC}"
+        echo "Some Docker layers are missing. This requires a clean reinstall."
+        echo ""
+        echo "Quick fix:"
+        echo -e "  ${YELLOW}docker system prune -a -f${NC}"
+        echo ""
+        echo "Or full reinstall:"
+        echo -e "  ${YELLOW}sudo ./scripts/install-wizard-verbose.sh${NC}"
+        rm -f /tmp/docker_start.log
+        exit 1
+    elif grep -q "no space left on device" /tmp/docker_start.log; then
+        echo ""
+        echo -e "${RED}✗ No space left on device${NC}"
+        echo "Your disk is full. Check available space:"
+        echo -e "  ${YELLOW}df -h${NC}"
+        rm -f /tmp/docker_start.log
+        exit 1
+    fi
+fi
+rm -f /tmp/docker_start.log
 
 # Wait for services to initialize
 echo ""

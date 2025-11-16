@@ -606,10 +606,26 @@ run_installation() {
     mkdir -p /etc/docker
 
     # Stop Docker before changing data-root
+    substep "Stopping Docker for configuration..."
+    systemctl stop docker.socket 2>/dev/null || true
+    systemctl stop docker 2>/dev/null || true
+    sleep 2
+
+    # Clean up old Docker data to prevent layer corruption
     if [[ "$DOCKER_DATA_ROOT" != "/var/lib/docker" ]]; then
-        substep "Stopping Docker to move data directory..."
-        systemctl stop docker 2>/dev/null || true
-        sleep 2
+        substep "Cleaning old Docker data from SD card..."
+        rm -rf /var/lib/docker/* 2>/dev/null || true
+
+        # Clean the new location too if it exists with old data
+        if [[ -d "$DOCKER_DATA_ROOT" ]] && [[ -d "$DOCKER_DATA_ROOT/overlay2" ]]; then
+            substep "Cleaning existing Docker data from HDD..."
+            rm -rf "$DOCKER_DATA_ROOT"/* 2>/dev/null || true
+        fi
+
+        # Ensure the Docker directory exists with correct permissions
+        mkdir -p "$DOCKER_DATA_ROOT"
+        chown root:root "$DOCKER_DATA_ROOT"
+        chmod 711 "$DOCKER_DATA_ROOT"
     fi
 
     cat > /etc/docker/daemon.json << DOCKERCONFIG
