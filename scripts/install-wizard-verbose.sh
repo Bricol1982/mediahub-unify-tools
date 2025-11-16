@@ -233,7 +233,8 @@ show_requirements() {
 
 get_vpn_provider() {
     VPN_SERVICE_PROVIDER=$($TUI --title "$(t "vpn.title")" \
-        --menu "$(t "vpn.select_provider")\n\n$(t "vpn.providers_info")" 20 70 10 \
+        --menu "$(t "vpn.select_provider")\n\n$(t "vpn.providers_info")" 22 70 12 \
+        "SKIP" ">>> Configure VPN LATER <<<" \
         "protonvpn" "ProtonVPN (Recommended)" \
         "mullvad" "Mullvad (Anonymous)" \
         "nordvpn" "NordVPN (5000+ servers)" \
@@ -250,12 +251,37 @@ get_vpn_provider() {
     return 0
 }
 
+skip_vpn_setup() {
+    VPN_SERVICE_PROVIDER="none"
+    VPN_TYPE="none"
+    OPENVPN_USER=""
+    OPENVPN_PASS=""
+    WIREGUARD_PRIVATE_KEY=""
+    WIREGUARD_ADDRESSES=""
+    SERVER_COUNTRIES=""
+    SERVER_REGIONS=""
+    SERVER_CITIES=""
+
+    $TUI --title "VPN Configuration Skipped" \
+        --msgbox "VPN will NOT be configured now.\n\n\
+You can configure it later by running:\n\
+  $INSTALL_DIR/scripts/setup-vpn.sh\n\n\
+WARNING: Without VPN, your downloads will NOT be protected!\n\n\
+Services will still be installed but qBittorrent will be exposed." 16 70
+
+    return 0
+}
+
 get_vpn_credentials() {
     if ! get_vpn_provider; then
         return 1
     fi
 
     case "$VPN_SERVICE_PROVIDER" in
+        SKIP)
+            skip_vpn_setup
+            return $?
+            ;;
         mullvad)
             get_wireguard_credentials
             return $?
