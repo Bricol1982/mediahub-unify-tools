@@ -648,58 +648,85 @@ show_progress() {
 }
 
 run_installation() {
+    # Pre-cache translations (bash arrays can't be exported to subshells)
+    local MSG_STARTING="$(t "install.starting")"
+    local MSG_CREATING_DIRS="$(t "install.creating_dirs")"
+    local MSG_CONFIGURING="$(t "install.configuring")"
+    local MSG_HDD="$(t "installer.hdd_detected")"
+    local MSG_PASSWORDS="$(t "summary.passwords")"
+    local MSG_PULLING="$(t "install.pulling_images")"
+    local MSG_STARTING_SERVICES="$(t "install.starting_services")"
+    local MSG_LINKING="$(t "postinstall.linking")"
+    local MSG_TV_KIOSK="$(t "features.tv_kiosk")"
+    local MSG_COMPLETE="$(t "install.complete")"
+    local MSG_TITLE="$(t "installer.title")"
+
+    # Export variables needed in subshell
+    export INSTALL_DIR PROJECT_DIR MASTER_PASSWORD OPENVPN_USER OPENVPN_PASS
+    export VPN_SERVICE_PROVIDER VPN_TYPE SERVER_COUNTRIES SERVER_REGIONS SERVER_CITIES
+    export WIREGUARD_PRIVATE_KEY WIREGUARD_PRESHARED_KEY WIREGUARD_ADDRESSES
+    export OPENVPN_CUSTOM_CONFIG USE_EXTERNAL_HDD SELECTED_DRIVE FEATURES
+    export HARDWARE_MODE TUI MEDIAHUB_LANG STATE_FILE LOG_FILE
+    export MSG_STARTING MSG_CREATING_DIRS MSG_CONFIGURING MSG_HDD MSG_PASSWORDS
+    export MSG_PULLING MSG_STARTING_SERVICES MSG_LINKING MSG_TV_KIOSK MSG_COMPLETE
+
+    # Export functions needed in subshell (for gauge pipe)
+    export -f show_progress save_state log generate_all_passwords create_env_file
+    export -f setup_security_hardening setup_tv_kiosk_mode setup_systemd_service
+
     # Create progress pipe
     exec 3>&1
     (
-        show_progress 0 "$(t "install.starting")"
+        show_progress 0 "$MSG_STARTING"
         save_state "PREP"
         sleep 1
 
-        show_progress 5 "$(t "install.starting")..."
+        show_progress 5 "$MSG_STARTING..."
         save_state "UPDATE"
         apt-get update > /dev/null 2>&1
         DEBIAN_FRONTEND=noninteractive apt-get upgrade -y > /dev/null 2>&1
 
-        show_progress 15 "$(t "install.creating_dirs")"
+        show_progress 15 "$MSG_CREATING_DIRS"
         save_state "DEPS"
         apt-get install -y -qq \
             docker.io docker-compose curl wget git jq \
             openssl gnupg2 software-properties-common \
             > /dev/null 2>&1
 
-        show_progress 25 "$(t "install.configuring")"
+        show_progress 25 "$MSG_CONFIGURING"
         save_state "DOCKER"
         systemctl enable docker > /dev/null 2>&1
         systemctl start docker > /dev/null 2>&1
         usermod -aG docker "${SUDO_USER:-pi}" 2>/dev/null || true
 
         if [[ "$USE_EXTERNAL_HDD" == true ]]; then
-            show_progress 30 "$(t "installer.hdd_detected")..."
+            show_progress 30 "$MSG_HDD..."
             save_state "HDD_FORMAT"
             # In production, actual formatting would happen here
             mkdir -p /mnt/media
             sleep 2
         fi
 
-        show_progress 35 "$(t "install.creating_dirs")"
+        show_progress 35 "$MSG_CREATING_DIRS"
         save_state "STRUCTURE"
         mkdir -p "$INSTALL_DIR"
-        cp -r "$PROJECT_DIR"/* "$INSTALL_DIR/"
-        chmod +x "$INSTALL_DIR/scripts/"*.sh
+        mkdir -p "$INSTALL_DIR/scripts"
+        cp -r "$PROJECT_DIR"/* "$INSTALL_DIR/" 2>/dev/null || true
+        chmod +x "$INSTALL_DIR/scripts/"*.sh 2>/dev/null || true
 
-        show_progress 45 "$(t "summary.passwords")..."
+        show_progress 45 "$MSG_PASSWORDS..."
         save_state "PASSWORDS"
         generate_all_passwords
 
-        show_progress 50 "$(t "install.configuring")"
+        show_progress 50 "$MSG_CONFIGURING"
         save_state "ENV"
         create_env_file
 
-        show_progress 55 "$(t "install.configuring")"
+        show_progress 55 "$MSG_CONFIGURING"
         save_state "SECURITY"
         setup_security_hardening
 
-        show_progress 60 "$(t "install.pulling_images")"
+        show_progress 60 "$MSG_PULLING"
         save_state "DOCKER_PULL"
         cd "$INSTALL_DIR"
         if [[ "$HARDWARE_MODE" == "limited" ]]; then
@@ -710,7 +737,7 @@ run_installation() {
             docker compose pull > /dev/null 2>&1 || true
         fi
 
-        show_progress 80 "$(t "install.starting_services")"
+        show_progress 80 "$MSG_STARTING_SERVICES"
         save_state "START"
         if [[ "$HARDWARE_MODE" == "limited" ]]; then
             docker compose -f docker-compose.pi3.yml up -d > /dev/null 2>&1 || true
@@ -718,41 +745,51 @@ run_installation() {
             docker compose up -d > /dev/null 2>&1 || true
         fi
 
-        show_progress 85 "$(t "postinstall.linking")"
+        show_progress 85 "$MSG_LINKING"
         save_state "POST_CONFIG"
         sleep 30
         bash "$INSTALL_DIR/scripts/post-install-setup.sh" > /dev/null 2>&1 || true
 
         if [[ "$FEATURES" == *"TV_KIOSK"* ]]; then
-            show_progress 90 "$(t "features.tv_kiosk")..."
+            show_progress 90 "$MSG_TV_KIOSK..."
             save_state "TV_KIOSK"
             setup_tv_kiosk_mode
         fi
 
-        show_progress 95 "$(t "install.configuring")"
+        show_progress 95 "$MSG_CONFIGURING"
         save_state "AUTOSTART"
         setup_systemd_service
 
-        show_progress 100 "$(t "install.complete")"
+        show_progress 100 "$MSG_COMPLETE"
         save_state "COMPLETE"
         sleep 2
 
-    ) | $TUI --title "$(t "installer.title")" \
-        --gauge "$(t "install.starting")" 10 70 0
+    ) | $TUI --title "$MSG_TITLE" \
+        --gauge "$MSG_STARTING" 10 70 0
 
     exec 3>&-
 }
 
 generate_all_passwords() {
     # Generate secure random passwords
-    JELLYFIN_PASSWORD=$(openssl rand -base64 16 | tr -dc 'a-zA-Z0-9' | head -c 16)
-    QBITTORRENT_PASSWORD=$(openssl rand -base64 16 | tr -dc 'a-zA-Z0-9' | head -c 16)
-    PHOTOPRISM_PASSWORD=$(openssl rand -base64 16 | tr -dc 'a-zA-Z0-9' | head -c 16)
-    GOTIFY_PASSWORD=$(openssl rand -base64 16 | tr -dc 'a-zA-Z0-9' | head -c 16)
+    export JELLYFIN_PASSWORD=$(openssl rand -base64 16 | tr -dc 'a-zA-Z0-9' | head -c 16)
+    export QBITTORRENT_PASSWORD=$(openssl rand -base64 16 | tr -dc 'a-zA-Z0-9' | head -c 16)
+    export PHOTOPRISM_PASSWORD=$(openssl rand -base64 16 | tr -dc 'a-zA-Z0-9' | head -c 16)
+    export GOTIFY_PASSWORD=$(openssl rand -base64 16 | tr -dc 'a-zA-Z0-9' | head -c 16)
+
+    # Ensure install dir exists
+    mkdir -p "$INSTALL_DIR" 2>/dev/null || true
 
     # Store encrypted with master password
     local creds_file="$INSTALL_DIR/.credentials.enc"
-    cat << EOF | openssl enc -aes-256-cbc -salt -pbkdf2 -pass pass:"$MASTER_PASSWORD" -out "$creds_file"
+
+    # Check if master password is set
+    if [[ -z "$MASTER_PASSWORD" ]]; then
+        log "WARNING: Master password not set, using default encryption"
+        MASTER_PASSWORD="mediahub_default_key"
+    fi
+
+    cat << EOF | openssl enc -aes-256-cbc -salt -pbkdf2 -pass pass:"$MASTER_PASSWORD" -out "$creds_file" 2>/dev/null || true
 JELLYFIN_PASSWORD=$JELLYFIN_PASSWORD
 QBITTORRENT_PASSWORD=$QBITTORRENT_PASSWORD
 PHOTOPRISM_PASSWORD=$PHOTOPRISM_PASSWORD
@@ -761,7 +798,7 @@ OPENVPN_USER=$OPENVPN_USER
 OPENVPN_PASS=$OPENVPN_PASS
 EOF
 
-    chmod 600 "$creds_file"
+    chmod 600 "$creds_file" 2>/dev/null || true
 }
 
 create_env_file() {
