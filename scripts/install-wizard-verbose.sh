@@ -526,37 +526,15 @@ run_installation() {
         success "Docker Compose plugin installed"
     fi
 
-    step "Optimizing Docker configuration for Raspberry Pi..."
-    mkdir -p /etc/docker
-    cat > /etc/docker/daemon.json << 'DOCKERCONFIG'
-{
-  "max-concurrent-downloads": 2,
-  "max-concurrent-uploads": 2,
-  "max-download-attempts": 10,
-  "log-driver": "json-file",
-  "log-opts": {
-    "max-size": "10m",
-    "max-file": "3"
-  },
-  "storage-driver": "overlay2"
-}
-DOCKERCONFIG
-    substep "Reduced concurrent downloads to 2"
-    substep "Increased retry attempts to 10"
-    substep "Added log rotation (10MB x 3 files)"
-
-    step "Restarting Docker with new configuration..."
-    systemctl restart docker
-    sleep 3
-    success "Docker optimized for stable image downloads"
-
-    # ========== EXTERNAL HDD ==========
+    # ========== EXTERNAL HDD (BEFORE DOCKER CONFIG) ==========
     phase "EXTERNAL HDD SETUP"
     save_state "HDD_FORMAT"
 
     step "Creating media mount point..."
     mkdir -p /mnt/media
     success "Mount point created: /mnt/media"
+
+    local DOCKER_DATA_ROOT="/var/lib/docker"  # Default location
 
     if [[ "$USE_EXTERNAL_HDD" == true ]] && [[ -n "$SELECTED_DRIVE" ]]; then
         step "Preparing external HDD: $SELECTED_DRIVE"
@@ -584,7 +562,7 @@ DOCKERCONFIG
 
         # Mount the drive
         substep "Mounting $partition to /mnt/media..."
-        mount "$partition" /mnt/media
+        mount "$partition" /mnt/media 2>/dev/null || true
         success "HDD mounted to /mnt/media"
 
         # Add to fstab for auto-mount
@@ -597,7 +575,7 @@ DOCKERCONFIG
 
         # Create media directories
         substep "Creating media directory structure..."
-        mkdir -p /mnt/media/{library/{tv,movies,music,books,comics,photos},downloads}
+        mkdir -p /mnt/media/{library/{tv,movies,music,books,comics,photos},downloads,docker}
         mkdir -p /mnt/media/library/photos/{originals,import}
         chown -R ${SUDO_USER:-pi}:${SUDO_USER:-pi} /mnt/media
         chmod -R 755 /mnt/media
@@ -606,17 +584,67 @@ DOCKERCONFIG
         # Save device for Scrutiny
         SCRUTINY_DEVICE="$SELECTED_DRIVE"
 
+        # Set Docker data root to HDD (critical for space!)
+        DOCKER_DATA_ROOT="/mnt/media/docker"
+        substep "Docker images will be stored on HDD: $DOCKER_DATA_ROOT"
+
         # Show disk info
         df -h /mnt/media
     else
         warning "No external HDD selected"
         info "Using default paths (ensure /mnt/media is mounted)"
+        warning "Docker images will use SD card space - may run out of space!"
 
         # Create directories anyway
         mkdir -p /mnt/media/{library/{tv,movies,music,books,comics,photos},downloads}
         mkdir -p /mnt/media/library/photos/{originals,import}
         chown -R ${SUDO_USER:-pi}:${SUDO_USER:-pi} /mnt/media 2>/dev/null || true
     fi
+
+    # ========== DOCKER CONFIGURATION (AFTER HDD MOUNT) ==========
+    step "Optimizing Docker configuration for Raspberry Pi..."
+    mkdir -p /etc/docker
+
+    # Stop Docker before changing data-root
+    if [[ "$DOCKER_DATA_ROOT" != "/var/lib/docker" ]]; then
+        substep "Stopping Docker to move data directory..."
+        systemctl stop docker 2>/dev/null || true
+        sleep 2
+    fi
+
+    cat > /etc/docker/daemon.json << DOCKERCONFIG
+{
+  "data-root": "$DOCKER_DATA_ROOT",
+  "max-concurrent-downloads": 2,
+  "max-concurrent-uploads": 2,
+  "max-download-attempts": 10,
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "10m",
+    "max-file": "3"
+  },
+  "storage-driver": "overlay2"
+}
+DOCKERCONFIG
+
+    substep "Docker data directory: $DOCKER_DATA_ROOT"
+    substep "Reduced concurrent downloads to 2"
+    substep "Increased retry attempts to 10"
+    substep "Added log rotation (10MB x 3 files)"
+
+    step "Restarting Docker with new configuration..."
+    systemctl start docker
+    sleep 3
+
+    # Verify Docker is using the correct data root
+    local actual_root=$(docker info 2>/dev/null | grep "Docker Root Dir" | awk '{print $NF}')
+    if [[ "$actual_root" == "$DOCKER_DATA_ROOT" ]]; then
+        success "Docker configured to use: $DOCKER_DATA_ROOT"
+    else
+        warning "Docker Root Dir: $actual_root (expected: $DOCKER_DATA_ROOT)"
+    fi
+
+    success "Docker optimized for stable image downloads"
 
     # ========== PROJECT STRUCTURE ==========
     phase "CREATING PROJECT STRUCTURE"

@@ -737,28 +737,12 @@ run_installation() {
             apt-get install -y -qq docker-compose-plugin > /dev/null 2>&1 || true
         fi
 
-        # Optimize Docker for Raspberry Pi (prevent timeouts)
-        show_progress 27 "Optimizing Docker configuration..."
-        mkdir -p /etc/docker
-        cat > /etc/docker/daemon.json << 'DOCKERCFG'
-{
-  "max-concurrent-downloads": 2,
-  "max-concurrent-uploads": 2,
-  "max-download-attempts": 10,
-  "log-driver": "json-file",
-  "log-opts": {
-    "max-size": "10m",
-    "max-file": "3"
-  },
-  "storage-driver": "overlay2"
-}
-DOCKERCFG
-        systemctl restart docker > /dev/null 2>&1 || true
-        sleep 3
-
-        show_progress 30 "$MSG_HDD..."
+        # Setup HDD first (before Docker config to know where to store images)
+        show_progress 27 "$MSG_HDD..."
         save_state "HDD_FORMAT"
         mkdir -p /mnt/media
+
+        local DOCKER_DATA_ROOT="/var/lib/docker"
 
         if [[ "$USE_EXTERNAL_HDD" == true ]] && [[ -n "$SELECTED_DRIVE" ]]; then
             # Prepare external HDD
@@ -787,20 +771,50 @@ DOCKERCFG
                 echo "UUID=$uuid /mnt/media ext4 defaults,noatime,nofail 0 2" >> /etc/fstab
             fi
 
-            # Create media directories
-            mkdir -p /mnt/media/{library/{tv,movies,music,books,comics,photos},downloads}
+            # Create media directories (including docker)
+            mkdir -p /mnt/media/{library/{tv,movies,music,books,comics,photos},downloads,docker}
             mkdir -p /mnt/media/library/photos/{originals,import}
             chown -R ${SUDO_USER:-pi}:${SUDO_USER:-pi} /mnt/media
             chmod -R 755 /mnt/media
 
             # Save device for Scrutiny
             export SCRUTINY_DEVICE="$SELECTED_DRIVE"
+
+            # Use HDD for Docker storage (critical for space!)
+            DOCKER_DATA_ROOT="/mnt/media/docker"
         else
             # Create directories anyway
             mkdir -p /mnt/media/{library/{tv,movies,music,books,comics,photos},downloads}
             mkdir -p /mnt/media/library/photos/{originals,import}
             chown -R ${SUDO_USER:-pi}:${SUDO_USER:-pi} /mnt/media 2>/dev/null || true
         fi
+
+        # Optimize Docker for Raspberry Pi (prevent timeouts)
+        show_progress 30 "Optimizing Docker configuration..."
+        mkdir -p /etc/docker
+
+        # Stop Docker before changing data-root
+        if [[ "$DOCKER_DATA_ROOT" != "/var/lib/docker" ]]; then
+            systemctl stop docker > /dev/null 2>&1 || true
+            sleep 2
+        fi
+
+        cat > /etc/docker/daemon.json << DOCKERCFG
+{
+  "data-root": "$DOCKER_DATA_ROOT",
+  "max-concurrent-downloads": 2,
+  "max-concurrent-uploads": 2,
+  "max-download-attempts": 10,
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "10m",
+    "max-file": "3"
+  },
+  "storage-driver": "overlay2"
+}
+DOCKERCFG
+        systemctl start docker > /dev/null 2>&1 || true
+        sleep 3
 
         show_progress 35 "$MSG_CREATING_DIRS"
         save_state "STRUCTURE"
