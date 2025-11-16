@@ -990,6 +990,9 @@ $(t "common.continue")..." 28 65
 }
 
 create_password_viewer() {
+    # Ensure directory exists
+    mkdir -p "$INSTALL_DIR/scripts" 2>/dev/null || true
+
     cat > "$INSTALL_DIR/scripts/show-passwords.sh" << 'EOF'
 #!/bin/bash
 # Show MediaHub passwords (requires master password)
