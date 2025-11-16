@@ -567,6 +567,7 @@ L'installation continuera sans disque externe.\n\
 Vous pourrez en ajouter un plus tard." 16 60
 
         USE_EXTERNAL_HDD=false
+        FORMAT_HDD=false
         return 0
     fi
 
@@ -588,22 +589,58 @@ Toutes les données seront EFFACÉES !\n" 18 70 5 \
 
     if [[ "$selected" == "SKIP" ]] || [[ -z "$selected" ]]; then
         USE_EXTERNAL_HDD=false
+        FORMAT_HDD=false
         return 0
-    fi
-
-    # Confirm formatting
-    local size=$(lsblk -d -o SIZE -n "/dev/$selected" 2>/dev/null)
-    if ! $TUI --title "CONFIRMATION IMPORTANTE" \
-        --yesno "Vous avez sélectionné : /dev/$selected ($size)\n\n\
-⚠️  ATTENTION ⚠️\n\n\
-Ce disque va être ENTIÈREMENT FORMATÉ.\n\
-Toutes les données seront DÉFINITIVEMENT PERDUES !\n\n\
-Êtes-vous ABSOLUMENT SÛR de vouloir continuer ?" 16 60; then
-        return 1
     fi
 
     SELECTED_DRIVE="/dev/$selected"
     USE_EXTERNAL_HDD=true
+
+    # Ask how to configure the HDD
+    local hdd_action
+    hdd_action=$($TUI --title "Configuration du Disque" \
+        --menu "Comment voulez-vous configurer $SELECTED_DRIVE ?" 20 70 4 \
+        "FORMAT" "Formater le disque (EFFACE TOUTES LES DONNÉES)" \
+        "USE_AS_IS" "Utiliser tel quel (déjà formaté/monté)" \
+        "MOUNT_ONLY" "Monter la partition existante (sans formater)" \
+        "CANCEL" "Retour" 3>&1 1>&2 2>&3)
+
+    case "$hdd_action" in
+        "FORMAT")
+            FORMAT_HDD=true
+            # Confirm formatting
+            local size=$(lsblk -d -o SIZE -n "$SELECTED_DRIVE" 2>/dev/null)
+            if ! $TUI --title "CONFIRMATION IMPORTANTE" \
+                --yesno "Vous avez sélectionné : $SELECTED_DRIVE ($size)\n\n\
+⚠️  ATTENTION ⚠️\n\n\
+Ce disque va être ENTIÈREMENT FORMATÉ.\n\
+Toutes les données seront DÉFINITIVEMENT PERDUES !\n\n\
+Êtes-vous ABSOLUMENT SÛR de vouloir continuer ?" 16 60; then
+                USE_EXTERNAL_HDD=false
+                FORMAT_HDD=false
+                return 1
+            fi
+            ;;
+        "USE_AS_IS")
+            FORMAT_HDD=false
+            # Check if already mounted
+            if mountpoint -q /mnt/media 2>/dev/null; then
+                HDD_ALREADY_MOUNTED=true
+            else
+                HDD_ALREADY_MOUNTED=false
+            fi
+            ;;
+        "MOUNT_ONLY")
+            FORMAT_HDD=false
+            MOUNT_EXISTING=true
+            ;;
+        *)
+            USE_EXTERNAL_HDD=false
+            FORMAT_HDD=false
+            return 1
+            ;;
+    esac
+
     return 0
 }
 
@@ -639,6 +676,15 @@ show_summary() {
 
     if [[ "$USE_EXTERNAL_HDD" == true ]]; then
         summary+="$(t "installer.hdd_detected") : $SELECTED_DRIVE\n"
+        if [[ "$FORMAT_HDD" == true ]]; then
+            summary+="Action HDD : FORMATER (effacera les données)\n"
+        elif [[ "$MOUNT_EXISTING" == true ]]; then
+            summary+="Action HDD : Monter partition existante\n"
+        elif [[ "$HDD_ALREADY_MOUNTED" == true ]]; then
+            summary+="Action HDD : Utiliser tel quel (déjà monté)\n"
+        else
+            summary+="Action HDD : Utiliser tel quel\n"
+        fi
     else
         summary+="$(t "installer.hdd_detected") : -\n"
     fi
@@ -748,40 +794,80 @@ run_installation() {
             # Prepare external HDD
             local partition="${SELECTED_DRIVE}1"
 
-            # Create partition if needed
-            if [[ ! -b "$partition" ]]; then
+            if [[ "$FORMAT_HDD" == true ]]; then
+                # Full format and partition
                 parted -s "$SELECTED_DRIVE" mklabel gpt > /dev/null 2>&1 || true
                 parted -s "$SELECTED_DRIVE" mkpart primary ext4 0% 100% > /dev/null 2>&1 || true
                 sleep 2
                 partition="${SELECTED_DRIVE}1"
-            fi
 
-            # Format if not ext4
-            local fs_type=$(blkid -o value -s TYPE "$partition" 2>/dev/null || echo "")
-            if [[ "$fs_type" != "ext4" ]]; then
                 mkfs.ext4 -F -L mediahub "$partition" > /dev/null 2>&1 || true
+
+                # Mount the drive
+                mount "$partition" /mnt/media > /dev/null 2>&1 || true
+
+                # Add to fstab
+                local uuid=$(blkid -s UUID -o value "$partition" 2>/dev/null || echo "")
+                if [[ -n "$uuid" ]] && ! grep -q "$uuid" /etc/fstab 2>/dev/null; then
+                    echo "UUID=$uuid /mnt/media ext4 defaults,noatime,nofail 0 2" >> /etc/fstab
+                fi
+
+                # Create media directories (including docker)
+                mkdir -p /mnt/media/{library/{tv,movies,music,books,comics,photos},downloads,docker}
+                mkdir -p /mnt/media/library/photos/{originals,import}
+                chown -R ${SUDO_USER:-pi}:${SUDO_USER:-pi} /mnt/media
+                chmod -R 755 /mnt/media
+
+            elif [[ "$MOUNT_EXISTING" == true ]]; then
+                # Mount existing partition without formatting
+                if [[ -b "$partition" ]]; then
+                    local fs_type=$(blkid -o value -s TYPE "$partition" 2>/dev/null || echo "")
+                    if [[ -n "$fs_type" ]]; then
+                        if ! mountpoint -q /mnt/media 2>/dev/null; then
+                            mount "$partition" /mnt/media > /dev/null 2>&1 || true
+                        fi
+
+                        # Add to fstab if not already there
+                        local uuid=$(blkid -s UUID -o value "$partition" 2>/dev/null || echo "")
+                        if [[ -n "$uuid" ]] && ! grep -q "$uuid" /etc/fstab 2>/dev/null; then
+                            echo "UUID=$uuid /mnt/media $fs_type defaults,noatime,nofail 0 2" >> /etc/fstab
+                        fi
+                    fi
+                fi
+
+                # Ensure directories exist
+                mkdir -p /mnt/media/{library/{tv,movies,music,books,comics,photos},downloads,docker}
+                mkdir -p /mnt/media/library/photos/{originals,import}
+                chown -R ${SUDO_USER:-pi}:${SUDO_USER:-pi} /mnt/media 2>/dev/null || true
+                chmod -R 755 /mnt/media 2>/dev/null || true
+
+            elif [[ "$HDD_ALREADY_MOUNTED" == true ]]; then
+                # Use as-is, already mounted - just ensure directories exist
+                mkdir -p /mnt/media/{library/{tv,movies,music,books,comics,photos},downloads,docker}
+                mkdir -p /mnt/media/library/photos/{originals,import}
+                chown -R ${SUDO_USER:-pi}:${SUDO_USER:-pi} /mnt/media 2>/dev/null || true
+                chmod -R 755 /mnt/media 2>/dev/null || true
+
+            else
+                # USE_AS_IS but not mounted - try to mount
+                if [[ -b "$partition" ]]; then
+                    mount "$partition" /mnt/media > /dev/null 2>&1 || true
+                fi
+
+                # Ensure directories exist
+                mkdir -p /mnt/media/{library/{tv,movies,music,books,comics,photos},downloads,docker}
+                mkdir -p /mnt/media/library/photos/{originals,import}
+                chown -R ${SUDO_USER:-pi}:${SUDO_USER:-pi} /mnt/media 2>/dev/null || true
+                chmod -R 755 /mnt/media 2>/dev/null || true
             fi
-
-            # Mount the drive
-            mount "$partition" /mnt/media > /dev/null 2>&1 || true
-
-            # Add to fstab
-            local uuid=$(blkid -s UUID -o value "$partition" 2>/dev/null || echo "")
-            if [[ -n "$uuid" ]] && ! grep -q "$uuid" /etc/fstab 2>/dev/null; then
-                echo "UUID=$uuid /mnt/media ext4 defaults,noatime,nofail 0 2" >> /etc/fstab
-            fi
-
-            # Create media directories (including docker)
-            mkdir -p /mnt/media/{library/{tv,movies,music,books,comics,photos},downloads,docker}
-            mkdir -p /mnt/media/library/photos/{originals,import}
-            chown -R ${SUDO_USER:-pi}:${SUDO_USER:-pi} /mnt/media
-            chmod -R 755 /mnt/media
 
             # Save device for Scrutiny
             export SCRUTINY_DEVICE="$SELECTED_DRIVE"
 
-            # Use HDD for Docker storage (critical for space!)
-            DOCKER_DATA_ROOT="/mnt/media/docker"
+            # Use HDD for Docker storage if mounted
+            if mountpoint -q /mnt/media 2>/dev/null; then
+                DOCKER_DATA_ROOT="/mnt/media/docker"
+            fi
         else
             # Create directories anyway
             mkdir -p /mnt/media/{library/{tv,movies,music,books,comics,photos},downloads}

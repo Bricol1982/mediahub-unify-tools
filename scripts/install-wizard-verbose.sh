@@ -391,6 +391,7 @@ select_hdd() {
 
     if [[ -z "$drives" ]]; then
         USE_EXTERNAL_HDD=false
+        FORMAT_HDD=false
         return 0
     fi
 
@@ -408,9 +409,41 @@ select_hdd() {
 
     if [[ "$selected" == "SKIP" ]] || [[ -z "$selected" ]]; then
         USE_EXTERNAL_HDD=false
+        FORMAT_HDD=false
     else
         SELECTED_DRIVE="/dev/$selected"
         USE_EXTERNAL_HDD=true
+
+        # Ask if user wants to format/modify the HDD
+        local hdd_action=$($TUI --title "HDD Configuration" \
+            --menu "How do you want to configure $SELECTED_DRIVE?" 18 70 4 \
+            "FORMAT" "Format and configure HDD (ERASES ALL DATA)" \
+            "USE_AS_IS" "Use HDD as-is (already formatted/mounted)" \
+            "MOUNT_ONLY" "Only mount existing partition (no format)" \
+            "CANCEL" "Go back" 3>&1 1>&2 2>&3)
+
+        case "$hdd_action" in
+            "FORMAT")
+                FORMAT_HDD=true
+                ;;
+            "USE_AS_IS")
+                FORMAT_HDD=false
+                # Check if already mounted
+                if mountpoint -q /mnt/media 2>/dev/null; then
+                    HDD_ALREADY_MOUNTED=true
+                else
+                    HDD_ALREADY_MOUNTED=false
+                fi
+                ;;
+            "MOUNT_ONLY")
+                FORMAT_HDD=false
+                MOUNT_EXISTING=true
+                ;;
+            *)
+                USE_EXTERNAL_HDD=false
+                FORMAT_HDD=false
+                ;;
+        esac
     fi
     return 0
 }
@@ -435,7 +468,20 @@ show_summary() {
     summary+="VPN Provider: $VPN_SERVICE_PROVIDER\n"
     summary+="Hardware Mode: $HARDWARE_MODE\n"
     summary+="Master Password: Set\n"
-    [[ "$USE_EXTERNAL_HDD" == true ]] && summary+="External HDD: $SELECTED_DRIVE\n" || summary+="External HDD: None\n"
+    if [[ "$USE_EXTERNAL_HDD" == true ]]; then
+        summary+="External HDD: $SELECTED_DRIVE\n"
+        if [[ "$FORMAT_HDD" == true ]]; then
+            summary+="HDD Action: FORMAT (will erase all data)\n"
+        elif [[ "$MOUNT_EXISTING" == true ]]; then
+            summary+="HDD Action: Mount existing partition\n"
+        elif [[ "$HDD_ALREADY_MOUNTED" == true ]]; then
+            summary+="HDD Action: Use as-is (already mounted)\n"
+        else
+            summary+="HDD Action: Use as-is\n"
+        fi
+    else
+        summary+="External HDD: None\n"
+    fi
     summary+="\nFeatures: $FEATURES\n\n"
     summary+="Continue with installation?"
 
@@ -539,57 +585,123 @@ run_installation() {
     if [[ "$USE_EXTERNAL_HDD" == true ]] && [[ -n "$SELECTED_DRIVE" ]]; then
         step "Preparing external HDD: $SELECTED_DRIVE"
 
-        # Check if partition exists
         local partition="${SELECTED_DRIVE}1"
-        if [[ ! -b "$partition" ]]; then
+
+        if [[ "$FORMAT_HDD" == true ]]; then
+            # Full format and partition
             substep "Creating partition on $SELECTED_DRIVE..."
             parted -s "$SELECTED_DRIVE" mklabel gpt
             parted -s "$SELECTED_DRIVE" mkpart primary ext4 0% 100%
             sleep 2
             partition="${SELECTED_DRIVE}1"
             success "Partition created: $partition"
-        fi
 
-        # Check filesystem
-        local fs_type=$(blkid -o value -s TYPE "$partition" 2>/dev/null || echo "")
-        if [[ "$fs_type" != "ext4" ]]; then
             substep "Formatting $partition as ext4..."
             mkfs.ext4 -F -L mediahub "$partition" 2>&1 | head -20
             success "Partition formatted as ext4"
+
+            # Mount the drive
+            substep "Mounting $partition to /mnt/media..."
+            mount "$partition" /mnt/media 2>/dev/null || true
+            success "HDD mounted to /mnt/media"
+
+            # Add to fstab for auto-mount
+            local uuid=$(blkid -s UUID -o value "$partition")
+            if ! grep -q "$uuid" /etc/fstab; then
+                substep "Adding to /etc/fstab for auto-mount..."
+                echo "UUID=$uuid /mnt/media ext4 defaults,noatime,nofail 0 2" >> /etc/fstab
+                success "Auto-mount configured"
+            fi
+
+            # Create media directories
+            substep "Creating media directory structure..."
+            mkdir -p /mnt/media/{library/{tv,movies,music,books,comics,photos},downloads,docker}
+            mkdir -p /mnt/media/library/photos/{originals,import}
+            chown -R ${SUDO_USER:-pi}:${SUDO_USER:-pi} /mnt/media
+            chmod -R 755 /mnt/media
+            success "Media directories created"
+
+        elif [[ "$MOUNT_EXISTING" == true ]]; then
+            # Mount existing partition without formatting
+            substep "Checking existing partition on $SELECTED_DRIVE..."
+            if [[ -b "$partition" ]]; then
+                local fs_type=$(blkid -o value -s TYPE "$partition" 2>/dev/null || echo "")
+                if [[ -n "$fs_type" ]]; then
+                    substep "Found $fs_type filesystem on $partition"
+
+                    if ! mountpoint -q /mnt/media 2>/dev/null; then
+                        substep "Mounting $partition to /mnt/media..."
+                        mount "$partition" /mnt/media
+                        success "HDD mounted to /mnt/media"
+                    else
+                        success "HDD already mounted at /mnt/media"
+                    fi
+
+                    # Add to fstab if not already there
+                    local uuid=$(blkid -s UUID -o value "$partition")
+                    if ! grep -q "$uuid" /etc/fstab; then
+                        substep "Adding to /etc/fstab for auto-mount..."
+                        echo "UUID=$uuid /mnt/media $fs_type defaults,noatime,nofail 0 2" >> /etc/fstab
+                        success "Auto-mount configured"
+                    fi
+                else
+                    warning "No filesystem found on $partition"
+                    warning "You may need to format the drive first"
+                fi
+            else
+                warning "Partition $partition not found"
+            fi
+
+            # Create directories if they don't exist
+            substep "Ensuring media directory structure exists..."
+            mkdir -p /mnt/media/{library/{tv,movies,music,books,comics,photos},downloads,docker}
+            mkdir -p /mnt/media/library/photos/{originals,import}
+            chown -R ${SUDO_USER:-pi}:${SUDO_USER:-pi} /mnt/media 2>/dev/null || true
+            chmod -R 755 /mnt/media 2>/dev/null || true
+            success "Media directories verified"
+
+        elif [[ "$HDD_ALREADY_MOUNTED" == true ]]; then
+            # Use as-is, already mounted
+            success "Using HDD as-is (already mounted)"
+
+            # Just ensure directories exist
+            substep "Ensuring media directory structure exists..."
+            mkdir -p /mnt/media/{library/{tv,movies,music,books,comics,photos},downloads,docker}
+            mkdir -p /mnt/media/library/photos/{originals,import}
+            chown -R ${SUDO_USER:-pi}:${SUDO_USER:-pi} /mnt/media 2>/dev/null || true
+            chmod -R 755 /mnt/media 2>/dev/null || true
+            success "Media directories verified"
         else
-            success "Partition already formatted as ext4"
+            # USE_AS_IS but not mounted - try to mount
+            substep "Attempting to mount existing partition..."
+            if [[ -b "$partition" ]]; then
+                mount "$partition" /mnt/media 2>/dev/null || true
+                if mountpoint -q /mnt/media 2>/dev/null; then
+                    success "HDD mounted to /mnt/media"
+                else
+                    warning "Could not mount $partition"
+                fi
+            fi
+
+            # Ensure directories exist
+            mkdir -p /mnt/media/{library/{tv,movies,music,books,comics,photos},downloads,docker}
+            mkdir -p /mnt/media/library/photos/{originals,import}
+            chown -R ${SUDO_USER:-pi}:${SUDO_USER:-pi} /mnt/media 2>/dev/null || true
+            chmod -R 755 /mnt/media 2>/dev/null || true
         fi
-
-        # Mount the drive
-        substep "Mounting $partition to /mnt/media..."
-        mount "$partition" /mnt/media 2>/dev/null || true
-        success "HDD mounted to /mnt/media"
-
-        # Add to fstab for auto-mount
-        local uuid=$(blkid -s UUID -o value "$partition")
-        if ! grep -q "$uuid" /etc/fstab; then
-            substep "Adding to /etc/fstab for auto-mount..."
-            echo "UUID=$uuid /mnt/media ext4 defaults,noatime,nofail 0 2" >> /etc/fstab
-            success "Auto-mount configured"
-        fi
-
-        # Create media directories
-        substep "Creating media directory structure..."
-        mkdir -p /mnt/media/{library/{tv,movies,music,books,comics,photos},downloads,docker}
-        mkdir -p /mnt/media/library/photos/{originals,import}
-        chown -R ${SUDO_USER:-pi}:${SUDO_USER:-pi} /mnt/media
-        chmod -R 755 /mnt/media
-        success "Media directories created"
 
         # Save device for Scrutiny
         SCRUTINY_DEVICE="$SELECTED_DRIVE"
 
         # Set Docker data root to HDD (critical for space!)
-        DOCKER_DATA_ROOT="/mnt/media/docker"
-        substep "Docker images will be stored on HDD: $DOCKER_DATA_ROOT"
-
-        # Show disk info
-        df -h /mnt/media
+        if mountpoint -q /mnt/media 2>/dev/null; then
+            DOCKER_DATA_ROOT="/mnt/media/docker"
+            substep "Docker images will be stored on HDD: $DOCKER_DATA_ROOT"
+            # Show disk info
+            df -h /mnt/media
+        else
+            warning "HDD not mounted - Docker will use SD card (may run out of space!)"
+        fi
     else
         warning "No external HDD selected"
         info "Using default paths (ensure /mnt/media is mounted)"
