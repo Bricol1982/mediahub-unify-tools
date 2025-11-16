@@ -182,25 +182,27 @@ services:
       - sonarr
       - radarr
 
-  readarr:
-    image: lscr.io/linuxserver/readarr:develop
-    container_name: readarr
-    environment:
-      - PUID=${PUID}
-      - PGID=${PGID}
-      - TZ=${TZ}
-    volumes:
-      - ${CONFIG_PATH}/readarr:/config
-      - ${MEDIA_PATH}/books:/books
-      - ${DOWNLOAD_PATH}:/downloads
-    ports:
-      - "8787:8787"
-    restart: unless-stopped
-    networks:
-      - medianet
-    depends_on:
-      - prowlarr
-      - qbittorrent
+  # NOTE: Readarr is NOT available for ARM64 (Raspberry Pi)
+  # Uncomment this section only for x86_64 systems
+  # readarr:
+  #   image: lscr.io/linuxserver/readarr:develop
+  #   container_name: readarr
+  #   environment:
+  #     - PUID=${PUID}
+  #     - PGID=${PGID}
+  #     - TZ=${TZ}
+  #   volumes:
+  #     - ${CONFIG_PATH}/readarr:/config
+  #     - ${MEDIA_PATH}/books:/books
+  #     - ${DOWNLOAD_PATH}:/downloads
+  #   ports:
+  #     - "8787:8787"
+  #   restart: unless-stopped
+  #   networks:
+  #     - medianet
+  #   depends_on:
+  #     - prowlarr
+  #     - qbittorrent
 
   # ===========================================
   # Media Server
