@@ -1,5 +1,3 @@
-version: "3.8"
-
 # MediaHub - Raspberry Pi 3 Limited Mode
 # Optimized for 1GB RAM devices
 # Essential services only - no resource-intensive apps

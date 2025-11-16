@@ -1,5 +1,3 @@
-version: "3.8"
-
 # MediaHub Unify Tools - Docker Compose Configuration
 # Optimized for Raspberry Pi 4
 
@@ -185,7 +183,7 @@ services:
       - radarr
 
   readarr:
-    image: lscr.io/linuxserver/readarr:latest
+    image: lscr.io/linuxserver/readarr:develop
     container_name: readarr
     environment:
       - PUID=${PUID}

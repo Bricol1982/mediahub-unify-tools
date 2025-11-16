@@ -1,0 +1,159 @@
+# MediaHub Development Environment
+# Lightweight setup for local testing
+# NO VPN, NO external storage required
+
+services:
+  # ============================================
+  # Core Media Services (Minimal Set)
+  # ============================================
+
+  jellyfin:
+    image: lscr.io/linuxserver/jellyfin:latest
+    container_name: jellyfin-dev
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Europe/Paris}
+    volumes:
+      - ${CONFIG_PATH:-./dev-data/config}/jellyfin:/config:z
+      - ${MEDIA_PATH:-./dev-data/library}:/data/media:z
+    ports:
+      - "8096:8096"
+    restart: unless-stopped
+    networks:
+      - medianet-dev
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8096/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:latest
+    container_name: sonarr-dev
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Europe/Paris}
+    volumes:
+      - ${CONFIG_PATH:-./dev-data/config}/sonarr:/config:z
+      - ${MEDIA_PATH:-./dev-data/library}/tv:/tv:z
+      - ${DOWNLOAD_PATH:-./dev-data/downloads}:/downloads:z
+    ports:
+      - "8989:8989"
+    restart: unless-stopped
+    networks:
+      - medianet-dev
+
+  radarr:
+    image: lscr.io/linuxserver/radarr:latest
+    container_name: radarr-dev
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Europe/Paris}
+    volumes:
+      - ${CONFIG_PATH:-./dev-data/config}/radarr:/config:z
+      - ${MEDIA_PATH:-./dev-data/library}/movies:/movies:z
+      - ${DOWNLOAD_PATH:-./dev-data/downloads}:/downloads:z
+    ports:
+      - "7878:7878"
+    restart: unless-stopped
+    networks:
+      - medianet-dev
+
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:latest
+    container_name: prowlarr-dev
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Europe/Paris}
+    volumes:
+      - ${CONFIG_PATH:-./dev-data/config}/prowlarr:/config:z
+    ports:
+      - "9696:9696"
+    restart: unless-stopped
+    networks:
+      - medianet-dev
+
+  # qBittorrent WITHOUT VPN (dev only - NOT for production!)
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:latest
+    container_name: qbittorrent-dev
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Europe/Paris}
+      - WEBUI_PORT=8080
+    volumes:
+      - ${CONFIG_PATH:-./dev-data/config}/qbittorrent:/config:z
+      - ${DOWNLOAD_PATH:-./dev-data/downloads}:/downloads:z
+    ports:
+      - "8080:8080"
+      - "6881:6881"
+      - "6881:6881/udp"
+    restart: unless-stopped
+    networks:
+      - medianet-dev
+
+  # ============================================
+  # Dashboard & Management
+  # ============================================
+
+  homarr:
+    image: ghcr.io/homarr-labs/homarr:latest
+    container_name: homarr-dev
+    environment:
+      - TZ=${TZ:-Europe/Paris}
+    volumes:
+      - ${CONFIG_PATH:-./dev-data/config}/homarr/configs:/app/data/configs:z
+      - ${CONFIG_PATH:-./dev-data/config}/homarr/data:/data:z
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    ports:
+      - "7575:7575"
+    restart: unless-stopped
+    networks:
+      - medianet-dev
+
+  # ============================================
+  # Monitoring (lightweight)
+  # ============================================
+
+  netdata:
+    image: netdata/netdata:latest
+    container_name: netdata-dev
+    hostname: mediahub-dev
+    cap_add:
+      - SYS_PTRACE
+    security_opt:
+      - apparmor:unconfined
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    ports:
+      - "19999:19999"
+    restart: unless-stopped
+    networks:
+      - medianet-dev
+
+  # ============================================
+  # Welcome Page (for testing)
+  # ============================================
+
+  welcome:
+    image: nginx:alpine
+    container_name: welcome-dev
+    volumes:
+      - ./docs/welcome:/usr/share/nginx/html:ro,z
+    ports:
+      - "8888:80"
+    restart: unless-stopped
+    networks:
+      - medianet-dev
+
+networks:
+  medianet-dev:
+    driver: bridge
+    name: mediahub-dev-network

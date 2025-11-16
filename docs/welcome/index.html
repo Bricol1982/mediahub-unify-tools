@@ -1,0 +1,914 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MediaHub Dashboard</title>
+    <style>
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #12121a;
+            --bg-card: #1a1a24;
+            --bg-hover: #22222e;
+            --accent: #6366f1;
+            --accent-glow: rgba(99, 102, 241, 0.3);
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --border: #2a2a3a;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Inter', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .bg-pattern {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background:
+                radial-gradient(circle at 20% 80%, var(--accent-glow) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(139, 92, 246, 0.15) 0%, transparent 50%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 0;
+            margin-bottom: 30px;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-icon {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, var(--accent), #8b5cf6);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            box-shadow: 0 0 30px var(--accent-glow);
+        }
+
+        .logo h1 {
+            font-size: 1.8em;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--text-primary), var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 10px;
+            font-size: 0.95em;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5558e3;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px var(--accent-glow);
+        }
+
+        .btn-secondary {
+            background: var(--bg-card);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-hover);
+            border-color: var(--accent);
+        }
+
+        .status-bar {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 30px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            border: 1px solid var(--border);
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        .status-indicator.online {
+            background: var(--success);
+            box-shadow: 0 0 10px var(--success);
+        }
+
+        .status-indicator.offline {
+            background: var(--danger);
+            box-shadow: 0 0 10px var(--danger);
+        }
+
+        .status-indicator.warning {
+            background: var(--warning);
+            box-shadow: 0 0 10px var(--warning);
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .status-info h4 {
+            font-size: 0.85em;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .status-info p {
+            font-size: 1.1em;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .section-title {
+            font-size: 1.3em;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: var(--text-primary);
+        }
+
+        .services-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+
+        .service-card {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 24px;
+            border: 1px solid var(--border);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .service-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--accent), #8b5cf6);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .service-card:hover {
+            transform: translateY(-5px);
+            border-color: var(--accent);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .service-card:hover::before {
+            opacity: 1;
+        }
+
+        .service-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 16px;
+        }
+
+        .service-icon {
+            width: 50px;
+            height: 50px;
+            background: var(--bg-hover);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+        }
+
+        .service-status {
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.75em;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .service-status.running {
+            background: rgba(16, 185, 129, 0.2);
+            color: var(--success);
+        }
+
+        .service-status.stopped {
+            background: rgba(239, 68, 68, 0.2);
+            color: var(--danger);
+        }
+
+        .service-title {
+            font-size: 1.2em;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .service-desc {
+            color: var(--text-secondary);
+            font-size: 0.9em;
+            margin-bottom: 16px;
+            line-height: 1.5;
+        }
+
+        .service-port {
+            color: var(--text-muted);
+            font-size: 0.85em;
+            font-family: monospace;
+            margin-bottom: 16px;
+        }
+
+        .service-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .service-btn {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.9em;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            text-align: center;
+        }
+
+        .service-btn-open {
+            background: var(--accent);
+            color: white;
+        }
+
+        .service-btn-open:hover {
+            background: #5558e3;
+        }
+
+        .service-btn-config {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+        }
+
+        .service-btn-config:hover {
+            border-color: var(--accent);
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+        }
+
+        .modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: var(--bg-secondary);
+            border-radius: 20px;
+            width: 90%;
+            max-width: 700px;
+            max-height: 90vh;
+            overflow-y: auto;
+            border: 1px solid var(--border);
+            animation: modalIn 0.3s ease;
+        }
+
+        @keyframes modalIn {
+            from {
+                opacity: 0;
+                transform: scale(0.95) translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+        }
+
+        .modal-header {
+            padding: 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h2 {
+            font-size: 1.4em;
+            font-weight: 600;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 24px;
+            cursor: pointer;
+            padding: 5px;
+            transition: color 0.2s;
+        }
+
+        .modal-close:hover {
+            color: var(--text-primary);
+        }
+
+        .modal-body {
+            padding: 24px;
+        }
+
+        .settings-section {
+            margin-bottom: 30px;
+        }
+
+        .settings-section h3 {
+            font-size: 1.1em;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: var(--accent);
+        }
+
+        .setting-item {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+            border: 1px solid var(--border);
+        }
+
+        .setting-label {
+            font-size: 0.9em;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+
+        .setting-value {
+            font-size: 1em;
+            font-weight: 500;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .setting-input {
+            width: 100%;
+            padding: 10px 14px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 0.95em;
+            transition: border-color 0.2s;
+        }
+
+        .setting-input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .setting-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .vpn-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+
+        .vpn-status.connected {
+            background: rgba(16, 185, 129, 0.2);
+            color: var(--success);
+        }
+
+        .vpn-status.disconnected {
+            background: rgba(239, 68, 68, 0.2);
+            color: var(--danger);
+        }
+
+        .quick-actions {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 24px;
+            border: 1px solid var(--border);
+            margin-bottom: 30px;
+        }
+
+        .quick-actions h3 {
+            font-size: 1.1em;
+            font-weight: 600;
+            margin-bottom: 16px;
+        }
+
+        .actions-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 12px;
+        }
+
+        .action-btn {
+            padding: 14px;
+            background: var(--bg-hover);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            color: var(--text-primary);
+            font-size: 0.9em;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .action-btn:hover {
+            background: var(--accent);
+            border-color: var(--accent);
+            transform: translateY(-2px);
+        }
+
+        .action-btn span {
+            font-size: 1.5em;
+        }
+
+        footer {
+            text-align: center;
+            padding: 20px;
+            color: var(--text-muted);
+            font-size: 0.85em;
+        }
+
+        footer a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+
+        .dev-warning {
+            background: rgba(245, 158, 11, 0.1);
+            border: 1px solid var(--warning);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 30px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .dev-warning span {
+            font-size: 1.5em;
+        }
+
+        .dev-warning p {
+            color: var(--warning);
+            font-weight: 500;
+        }
+
+        @media (max-width: 768px) {
+            .header-actions {
+                display: none;
+            }
+
+            .status-bar {
+                grid-template-columns: 1fr;
+            }
+
+            .services-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-pattern"></div>
+
+    <div class="container">
+        <header>
+            <div class="logo">
+                <div class="logo-icon">🎬</div>
+                <h1>MediaHub</h1>
+            </div>
+            <div class="header-actions">
+                <button class="btn btn-secondary" onclick="openSettings()">
+                    ⚙️ Paramètres
+                </button>
+                <button class="btn btn-primary" onclick="refreshStatus()">
+                    🔄 Actualiser
+                </button>
+            </div>
+        </header>
+
+        <div class="dev-warning">
+            <span>⚠️</span>
+            <p><strong>MODE DÉVELOPPEMENT</strong> - Aucune protection VPN active. Ne pas utiliser pour de vrais téléchargements.</p>
+        </div>
+
+        <div class="status-bar">
+            <div class="status-item">
+                <div class="status-indicator warning" id="vpn-indicator"></div>
+                <div class="status-info">
+                    <h4>VPN Status</h4>
+                    <p id="vpn-status-text">Non configuré</p>
+                </div>
+            </div>
+            <div class="status-item">
+                <div class="status-indicator online" id="services-indicator"></div>
+                <div class="status-info">
+                    <h4>Services</h4>
+                    <p id="services-count">8/8 actifs</p>
+                </div>
+            </div>
+            <div class="status-item">
+                <div class="status-indicator online"></div>
+                <div class="status-info">
+                    <h4>Stockage</h4>
+                    <p>Dev Local</p>
+                </div>
+            </div>
+            <div class="status-item">
+                <div class="status-indicator online"></div>
+                <div class="status-info">
+                    <h4>Réseau</h4>
+                    <p>192.168.1.x</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="quick-actions">
+            <h3>⚡ Actions Rapides</h3>
+            <div class="actions-grid">
+                <button class="action-btn" onclick="openSettings()">
+                    <span>🔐</span>
+                    Config VPN
+                </button>
+                <button class="action-btn" onclick="window.open('http://localhost:7575', '_blank')">
+                    <span>🏠</span>
+                    Dashboard
+                </button>
+                <button class="action-btn" onclick="alert('Redémarrage des services...')">
+                    <span>🔄</span>
+                    Redémarrer
+                </button>
+                <button class="action-btn" onclick="alert('Voir logs...')">
+                    <span>📋</span>
+                    Voir Logs
+                </button>
+                <button class="action-btn" onclick="alert('Backup en cours...')">
+                    <span>💾</span>
+                    Backup
+                </button>
+                <button class="action-btn" onclick="alert('Mise à jour...')">
+                    <span>⬆️</span>
+                    Mise à jour
+                </button>
+            </div>
+        </div>
+
+        <h2 class="section-title">🎯 Services Média</h2>
+        <div class="services-grid">
+            <div class="service-card">
+                <div class="service-header">
+                    <div class="service-icon">📺</div>
+                    <span class="service-status running">Actif</span>
+                </div>
+                <h3 class="service-title">Jellyfin</h3>
+                <p class="service-desc">Serveur multimédia pour streamer films, séries et musique</p>
+                <p class="service-port">Port: 8096</p>
+                <div class="service-actions">
+                    <a href="http://localhost:8096" target="_blank" class="service-btn service-btn-open">Ouvrir</a>
+                    <button class="service-btn service-btn-config">Config</button>
+                </div>
+            </div>
+
+            <div class="service-card">
+                <div class="service-header">
+                    <div class="service-icon">📺</div>
+                    <span class="service-status running">Actif</span>
+                </div>
+                <h3 class="service-title">Sonarr</h3>
+                <p class="service-desc">Gestionnaire automatique de séries TV</p>
+                <p class="service-port">Port: 8989</p>
+                <div class="service-actions">
+                    <a href="http://localhost:8989" target="_blank" class="service-btn service-btn-open">Ouvrir</a>
+                    <button class="service-btn service-btn-config">Config</button>
+                </div>
+            </div>
+
+            <div class="service-card">
+                <div class="service-header">
+                    <div class="service-icon">🎬</div>
+                    <span class="service-status running">Actif</span>
+                </div>
+                <h3 class="service-title">Radarr</h3>
+                <p class="service-desc">Gestionnaire automatique de films</p>
+                <p class="service-port">Port: 7878</p>
+                <div class="service-actions">
+                    <a href="http://localhost:7878" target="_blank" class="service-btn service-btn-open">Ouvrir</a>
+                    <button class="service-btn service-btn-config">Config</button>
+                </div>
+            </div>
+
+            <div class="service-card">
+                <div class="service-header">
+                    <div class="service-icon">🔍</div>
+                    <span class="service-status running">Actif</span>
+                </div>
+                <h3 class="service-title">Prowlarr</h3>
+                <p class="service-desc">Gestionnaire centralisé d'indexeurs</p>
+                <p class="service-port">Port: 9696</p>
+                <div class="service-actions">
+                    <a href="http://localhost:9696" target="_blank" class="service-btn service-btn-open">Ouvrir</a>
+                    <button class="service-btn service-btn-config">Config</button>
+                </div>
+            </div>
+
+            <div class="service-card">
+                <div class="service-header">
+                    <div class="service-icon">⬇️</div>
+                    <span class="service-status running">Actif</span>
+                </div>
+                <h3 class="service-title">qBittorrent</h3>
+                <p class="service-desc">Client torrent (⚠️ Sans VPN en dev)</p>
+                <p class="service-port">Port: 8080</p>
+                <div class="service-actions">
+                    <a href="http://localhost:8080" target="_blank" class="service-btn service-btn-open">Ouvrir</a>
+                    <button class="service-btn service-btn-config">Config</button>
+                </div>
+            </div>
+
+            <div class="service-card">
+                <div class="service-header">
+                    <div class="service-icon">🏠</div>
+                    <span class="service-status running">Actif</span>
+                </div>
+                <h3 class="service-title">Homarr</h3>
+                <p class="service-desc">Dashboard personnalisable</p>
+                <p class="service-port">Port: 7575</p>
+                <div class="service-actions">
+                    <a href="http://localhost:7575" target="_blank" class="service-btn service-btn-open">Ouvrir</a>
+                    <button class="service-btn service-btn-config">Config</button>
+                </div>
+            </div>
+
+            <div class="service-card">
+                <div class="service-header">
+                    <div class="service-icon">📊</div>
+                    <span class="service-status running">Actif</span>
+                </div>
+                <h3 class="service-title">Netdata</h3>
+                <p class="service-desc">Monitoring système en temps réel</p>
+                <p class="service-port">Port: 19999</p>
+                <div class="service-actions">
+                    <a href="http://localhost:19999" target="_blank" class="service-btn service-btn-open">Ouvrir</a>
+                    <button class="service-btn service-btn-config">Config</button>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>MediaHub Unify Tools v1.0 | <a href="https://github.com/yourusername/mediahub-unify-tools">GitHub</a> | Mode Développement</p>
+        </footer>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal" id="settingsModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>⚙️ Paramètres</h2>
+                <button class="modal-close" onclick="closeSettings()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="settings-section">
+                    <h3>🔐 Configuration VPN</h3>
+                    <div class="setting-item">
+                        <div class="setting-label">Statut VPN</div>
+                        <div class="setting-value">
+                            <span class="vpn-status disconnected">
+                                <span>●</span> Non configuré
+                            </span>
+                        </div>
+                    </div>
+                    <div class="setting-item">
+                        <div class="setting-label">Fournisseur VPN</div>
+                        <select class="setting-input" id="vpn-provider">
+                            <option value="">-- Sélectionner --</option>
+                            <option value="protonvpn">ProtonVPN</option>
+                            <option value="nordvpn">NordVPN</option>
+                            <option value="mullvad">Mullvad</option>
+                            <option value="surfshark">Surfshark</option>
+                            <option value="pia">Private Internet Access</option>
+                            <option value="expressvpn">ExpressVPN</option>
+                            <option value="custom">Configuration personnalisée</option>
+                        </select>
+                    </div>
+                    <div class="setting-item">
+                        <div class="setting-label">Nom d'utilisateur OpenVPN</div>
+                        <input type="text" class="setting-input" placeholder="Votre nom d'utilisateur service" id="vpn-user">
+                    </div>
+                    <div class="setting-item">
+                        <div class="setting-label">Mot de passe OpenVPN</div>
+                        <input type="password" class="setting-input" placeholder="Votre mot de passe service" id="vpn-pass">
+                    </div>
+                    <div class="setting-item">
+                        <div class="setting-label">Pays du serveur</div>
+                        <input type="text" class="setting-input" placeholder="Netherlands, Switzerland..." id="vpn-country" value="Netherlands">
+                    </div>
+                    <button class="btn btn-primary" style="width: 100%; margin-top: 10px;" onclick="saveVPNConfig()">
+                        💾 Sauvegarder configuration VPN
+                    </button>
+                </div>
+
+                <div class="settings-section">
+                    <h3>📁 Chemins de stockage</h3>
+                    <div class="setting-item">
+                        <div class="setting-label">Dossier de configuration</div>
+                        <input type="text" class="setting-input" value="./dev-data/config" readonly>
+                    </div>
+                    <div class="setting-item">
+                        <div class="setting-label">Dossier des téléchargements</div>
+                        <input type="text" class="setting-input" value="./dev-data/downloads" readonly>
+                    </div>
+                    <div class="setting-item">
+                        <div class="setting-label">Bibliothèque média</div>
+                        <input type="text" class="setting-input" value="./dev-data/library" readonly>
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <h3>🔔 Notifications</h3>
+                    <div class="setting-item">
+                        <div class="setting-label">Discord Webhook URL</div>
+                        <input type="text" class="setting-input" placeholder="https://discord.com/api/webhooks/...">
+                    </div>
+                    <div class="setting-item">
+                        <div class="setting-label">Telegram Bot Token</div>
+                        <input type="text" class="setting-input" placeholder="123456:ABC-DEF...">
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <h3>🛡️ Sécurité</h3>
+                    <div class="setting-item">
+                        <div class="setting-label">Mot de passe maître</div>
+                        <input type="password" class="setting-input" placeholder="Nouveau mot de passe maître">
+                    </div>
+                    <button class="btn btn-secondary" style="width: 100%;">
+                        🔄 Régénérer tous les mots de passe
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function openSettings() {
+            document.getElementById('settingsModal').classList.add('active');
+        }
+
+        function closeSettings() {
+            document.getElementById('settingsModal').classList.remove('active');
+        }
+
+        function refreshStatus() {
+            const indicator = document.getElementById('services-indicator');
+            indicator.style.animation = 'none';
+            indicator.offsetHeight;
+            indicator.style.animation = 'pulse 0.3s 3';
+            alert('Statut actualisé !');
+        }
+
+        function saveVPNConfig() {
+            const provider = document.getElementById('vpn-provider').value;
+            const user = document.getElementById('vpn-user').value;
+            const pass = document.getElementById('vpn-pass').value;
+            const country = document.getElementById('vpn-country').value;
+
+            if (!provider) {
+                alert('Veuillez sélectionner un fournisseur VPN');
+                return;
+            }
+
+            if (!user || !pass) {
+                alert('Veuillez entrer vos identifiants VPN');
+                return;
+            }
+
+            console.log('VPN Config:', { provider, user, country });
+            alert(`Configuration VPN sauvegardée !\n\nFournisseur: ${provider}\nPays: ${country}\n\nRedémarrez les services pour appliquer.`);
+            closeSettings();
+        }
+
+        document.getElementById('settingsModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeSettings();
+            }
+        });
+
+        async function checkServices() {
+            const services = [
+                { name: 'Jellyfin', port: 8096 },
+                { name: 'Sonarr', port: 8989 },
+                { name: 'Radarr', port: 7878 },
+                { name: 'Prowlarr', port: 9696 },
+                { name: 'qBittorrent', port: 8080 },
+                { name: 'Homarr', port: 7575 },
+                { name: 'Netdata', port: 19999 }
+            ];
+
+            let activeCount = services.length;
+            document.getElementById('services-count').textContent = `${activeCount}/${services.length} actifs`;
+        }
+
+        checkServices();
+    </script>
+</body>
+</html>

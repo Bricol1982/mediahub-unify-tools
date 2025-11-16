@@ -55,3 +55,8 @@ config/*/cache/
 *.db
 *.db-shm
 *.db-wal
+
+# Development environment
+dev-data/
+.env.local
+*.pid
