@@ -605,7 +605,10 @@ EOF
 }
 
 main() {
-    # Start log
+    # Check root FIRST (before trying to write to /var/log)
+    check_root
+
+    # Start log (now we have root permissions)
     touch "$LOG_FILE"
     chmod 644 "$LOG_FILE"
     log "=== MediaHub Automatic Installation Started ==="
@@ -616,8 +619,6 @@ main() {
     echo -e "${CYAN}  Version 1.0${NC}"
     echo -e "${CYAN}=========================================${NC}"
     echo ""
-
-    check_root
     detect_hardware
     get_user_input
 
