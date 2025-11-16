@@ -759,22 +759,34 @@ run_installation() {
 
         show_progress 85 "$MSG_LINKING"
         save_state "POST_CONFIG"
-        sleep 30
-        bash "$INSTALL_DIR/scripts/post-install-setup.sh" > /dev/null 2>&1 || true
+        # Reduced wait time - services should be starting
+        sleep 10
 
+        show_progress 87 "Running post-install setup..."
+        save_state "POST_SETUP"
+        if [[ -f "$INSTALL_DIR/scripts/post-install-setup.sh" ]]; then
+            bash "$INSTALL_DIR/scripts/post-install-setup.sh" > /dev/null 2>&1 || true
+        fi
+
+        show_progress 90 "Configuring features..."
+        save_state "FEATURES"
         if [[ "$FEATURES" == *"TV_KIOSK"* ]]; then
-            show_progress 90 "$MSG_TV_KIOSK..."
+            show_progress 92 "$MSG_TV_KIOSK..."
             save_state "TV_KIOSK"
             setup_tv_kiosk_mode
         fi
 
-        show_progress 95 "$MSG_CONFIGURING"
+        show_progress 95 "Setting up autostart service..."
         save_state "AUTOSTART"
         setup_systemd_service
 
+        show_progress 98 "Finalizing installation..."
+        save_state "FINALIZING"
+        sleep 1
+
         show_progress 100 "$MSG_COMPLETE"
         save_state "COMPLETE"
-        sleep 2
+        sleep 1
 
     ) | $TUI --title "$MSG_TITLE" \
         --gauge "$MSG_STARTING" 10 70 0
