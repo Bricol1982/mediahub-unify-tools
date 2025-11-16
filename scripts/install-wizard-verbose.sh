@@ -759,6 +759,49 @@ EOF
 
     cd "$INSTALL_DIR"
 
+    # Check if images are already downloaded
+    step "Checking for existing Docker images..."
+    local total_services=0
+    local existing_images=0
+    local missing_images=0
+
+    # Get list of required images from docker-compose
+    local compose_file_to_use=""
+    if [[ "$HARDWARE_MODE" == "limited" ]] && [[ -f docker-compose.pi3.yml ]]; then
+        compose_file_to_use="docker-compose.pi3.yml"
+    else
+        compose_file_to_use="docker-compose.yml"
+    fi
+
+    # Count images
+    if [[ -n "$compose_file_to_use" ]]; then
+        local required_images=$(docker compose -f "$compose_file_to_use" config --images 2>/dev/null | sort -u)
+        total_services=$(echo "$required_images" | wc -l)
+
+        for img in $required_images; do
+            if docker image inspect "$img" > /dev/null 2>&1; then
+                existing_images=$((existing_images + 1))
+            else
+                missing_images=$((missing_images + 1))
+            fi
+        done
+    fi
+
+    info "Total services: $total_services"
+    info "Images already downloaded: $existing_images"
+    info "Images to download: $missing_images"
+
+    # Skip pull if all images are present
+    if [[ $missing_images -eq 0 ]] && [[ $existing_images -gt 0 ]]; then
+        success "All Docker images already present! Skipping download."
+        step "Listing available images..."
+        docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}" | head -50
+        success "Images ready"
+    else
+        if [[ $existing_images -gt 0 ]]; then
+            info "Some images already present, only downloading missing ones..."
+        fi
+
     # Function to pull images with retry logic
     pull_images_with_retry() {
         local compose_file="$1"
@@ -840,6 +883,8 @@ EOF
     step "Listing downloaded images..."
     docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}" | head -50
     success "Images ready"
+
+    fi  # End of conditional pull (only if missing_images > 0)
 
     # ========== STARTING SERVICES ==========
     phase "STARTING DOCKER CONTAINERS"

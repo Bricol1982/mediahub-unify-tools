@@ -839,34 +839,55 @@ DOCKERCFG
         save_state "DOCKER_PULL"
         cd "$INSTALL_DIR"
 
-        # Pull images with retry logic (max 3 attempts)
-        local pull_retries=0
-        local pull_max=3
-        local pull_done=false
+        # Check if images are already downloaded
+        local missing_count=0
+        local compose_check=""
+        if [[ "$HARDWARE_MODE" == "limited" ]] && [[ -f docker-compose.pi3.yml ]]; then
+            compose_check="docker-compose.pi3.yml"
+        else
+            compose_check="docker-compose.yml"
+        fi
 
-        while [[ $pull_retries -lt $pull_max ]] && [[ "$pull_done" == "false" ]]; do
-            pull_retries=$((pull_retries + 1))
-
-            if [[ "$HARDWARE_MODE" == "limited" ]]; then
-                # Pi3 mode - use limited compose file
-                if docker compose -f docker-compose.pi3.yml pull 2>&1 | grep -q "error\|timeout"; then
-                    sleep 10
-                else
-                    pull_done=true
-                fi
-            else
-                # Full mode - use standard compose file
-                if docker compose pull 2>&1 | grep -q "error\|timeout"; then
-                    sleep 10
-                else
-                    pull_done=true
-                fi
-            fi
-
-            if [[ "$pull_done" == "false" ]] && [[ $pull_retries -lt $pull_max ]]; then
-                show_progress $((60 + pull_retries * 5)) "Retrying image download ($pull_retries/$pull_max)..."
+        # Count missing images
+        local required_imgs=$(docker compose -f "$compose_check" config --images 2>/dev/null | sort -u)
+        for img in $required_imgs; do
+            if ! docker image inspect "$img" > /dev/null 2>&1; then
+                missing_count=$((missing_count + 1))
             fi
         done
+
+        # Only pull if images are missing
+        if [[ $missing_count -gt 0 ]]; then
+            # Pull images with retry logic (max 3 attempts)
+            local pull_retries=0
+            local pull_max=3
+            local pull_done=false
+
+            while [[ $pull_retries -lt $pull_max ]] && [[ "$pull_done" == "false" ]]; do
+                pull_retries=$((pull_retries + 1))
+
+                if [[ "$HARDWARE_MODE" == "limited" ]]; then
+                    # Pi3 mode - use limited compose file
+                    if docker compose -f docker-compose.pi3.yml pull 2>&1 | grep -q "error\|timeout"; then
+                        sleep 10
+                    else
+                        pull_done=true
+                    fi
+                else
+                    # Full mode - use standard compose file
+                    if docker compose pull 2>&1 | grep -q "error\|timeout"; then
+                        sleep 10
+                    else
+                        pull_done=true
+                    fi
+                fi
+
+                if [[ "$pull_done" == "false" ]] && [[ $pull_retries -lt $pull_max ]]; then
+                    show_progress $((60 + pull_retries * 5)) "Retrying image download ($pull_retries/$pull_max)..."
+                fi
+            done
+        fi
+        # If no images missing, skip pull (saves time on reinstall)
 
         show_progress 80 "$MSG_STARTING_SERVICES"
         save_state "START"
