@@ -1,6 +1,6 @@
 #!/bin/bash
 # Setup Heimdall dashboard with all Essential pack applications
-# This script automatically adds app tiles to Heimdall
+# This script generates a pre-configured Heimdall database
 
 set -e
 
@@ -27,7 +27,7 @@ echo ""
 echo -e "Raspberry Pi IP: ${GREEN}$RPI_IP${NC}"
 echo ""
 
-# Wait for Heimdall to be running
+# Check if Heimdall is running
 echo -e "${BLUE}Checking Heimdall status...${NC}"
 if ! docker ps --format '{{.Names}}' | grep -q "^heimdall$"; then
     echo -e "${RED}Heimdall container is not running${NC}"
@@ -35,22 +35,42 @@ if ! docker ps --format '{{.Names}}' | grep -q "^heimdall$"; then
     exit 1
 fi
 
-# Heimdall uses SQLite database
-HEIMDALL_DB="$HEIMDALL_CONFIG/www/app.sqlite"
+# Stop Heimdall to modify config
+echo -e "${BLUE}Stopping Heimdall temporarily...${NC}"
+docker stop heimdall
+
+# Create Heimdall config directory if not exists
+mkdir -p "$HEIMDALL_CONFIG/www"
+
+# Remove old database to start fresh
+if [[ -f "$HEIMDALL_CONFIG/www/app.sqlite" ]]; then
+    echo -e "${YELLOW}Removing old database...${NC}"
+    rm -f "$HEIMDALL_CONFIG/www/app.sqlite"
+    rm -f "$HEIMDALL_CONFIG/www/app.sqlite-shm"
+    rm -f "$HEIMDALL_CONFIG/www/app.sqlite-wal"
+fi
+
+# Start Heimdall to create fresh database
+echo -e "${BLUE}Starting Heimdall to initialize database...${NC}"
+docker start heimdall
 
 # Wait for database to be created
-echo -e "${BLUE}Waiting for Heimdall database...${NC}"
+echo -e "${BLUE}Waiting for database initialization...${NC}"
 for i in {1..30}; do
-    if [[ -f "$HEIMDALL_DB" ]]; then
-        echo -e "${GREEN}Database found${NC}"
+    if [[ -f "$HEIMDALL_CONFIG/www/app.sqlite" ]]; then
+        echo -e "${GREEN}Database created${NC}"
         break
     fi
     sleep 2
 done
 
-if [[ ! -f "$HEIMDALL_DB" ]]; then
-    echo -e "${YELLOW}Database not found. Creating via API...${NC}"
+if [[ ! -f "$HEIMDALL_CONFIG/www/app.sqlite" ]]; then
+    echo -e "${RED}Database not created after 60 seconds${NC}"
+    exit 1
 fi
+
+# Wait a bit more for Heimdall to fully initialize
+sleep 5
 
 # Check if sqlite3 is available on host
 if ! command -v sqlite3 &>/dev/null; then
@@ -58,82 +78,80 @@ if ! command -v sqlite3 &>/dev/null; then
     apt-get update -qq && apt-get install -y -qq sqlite3
 fi
 
-# Function to add app via Heimdall's database (using host sqlite3)
-add_app_to_db() {
+HEIMDALL_DB="$HEIMDALL_CONFIG/www/app.sqlite"
+
+# Create admin user with public_front enabled
+echo -e "${BLUE}Configuring admin user...${NC}"
+sqlite3 "$HEIMDALL_DB" "
+    DELETE FROM users;
+    INSERT INTO users (id, username, email, avatar, password, autologin, public_front, remember_token, created_at, updated_at)
+    VALUES (1, 'admin', 'admin@mediahub.local', NULL, '', NULL, 1, NULL, datetime('now'), datetime('now'));
+"
+
+echo -e "${BLUE}Adding Essential Pack applications...${NC}"
+echo ""
+
+# Counter for order
+ORDER=0
+
+# Function to add app
+add_app() {
     local title="$1"
     local url="$2"
-    local icon="$3"
-    local color="$4"
-    local description="$5"
-    local order="$6"
+    local color="$3"
+    local description="$4"
 
-    # Check if app already exists
-    if sqlite3 "$HEIMDALL_DB" \
-        "SELECT COUNT(*) FROM items WHERE title='$title';" 2>/dev/null | grep -q "^[1-9]"; then
-        echo -e "  ${YELLOW}⊘${NC} $title (already exists)"
-        return
-    fi
+    ORDER=$((ORDER + 1))
 
-    # Insert into database with user_id=0 for public visibility (no login required)
     sqlite3 "$HEIMDALL_DB" "
         INSERT INTO items (title, url, colour, icon, description, pinned, type, user_id, created_at, updated_at, \"order\", deleted_at, class)
-        VALUES ('$title', '$url', '$color', '$icon', '$description', 1, 0, 0, datetime('now'), datetime('now'), $order, NULL, 'item');
-    " 2>/dev/null
+        VALUES ('$title', '$url', '$color', '', '$description', 1, 0, 1, datetime('now'), datetime('now'), $ORDER, NULL, NULL);
+    "
 
     if [[ $? -eq 0 ]]; then
         echo -e "  ${GREEN}✓${NC} $title"
     else
-        echo -e "  ${RED}✗${NC} $title (failed to add)"
+        echo -e "  ${RED}✗${NC} $title"
     fi
 }
 
-echo -e "${BLUE}Adding Essential Pack applications to Heimdall...${NC}"
-echo ""
-
 # Essential Pack Applications
-# Format: title, url, icon, color, description, order
-
-# Core Services
-add_app_to_db "qBittorrent" "http://$RPI_IP:8080" "" "#2f7eed" "Torrent Client" 1
-add_app_to_db "Prowlarr" "http://$RPI_IP:9696" "" "#ffc230" "Indexer Manager" 2
-add_app_to_db "FlareSolverr" "http://$RPI_IP:8191" "" "#ff7b00" "Anti-Bot Solver" 3
-
-# Media Managers (*arr Suite)
-add_app_to_db "Sonarr" "http://$RPI_IP:8989" "" "#00ccff" "TV Shows Manager" 4
-add_app_to_db "Radarr" "http://$RPI_IP:7878" "" "#ffc230" "Movies Manager" 5
-add_app_to_db "Lidarr" "http://$RPI_IP:8686" "" "#00cc00" "Music Manager" 6
-add_app_to_db "Bazarr" "http://$RPI_IP:6767" "" "#8e44ad" "Subtitles Manager" 7
-
-# Media Server
-add_app_to_db "Jellyfin" "http://$RPI_IP:8096" "" "#00a4dc" "Media Server" 8
-add_app_to_db "Jellyseerr" "http://$RPI_IP:5055" "" "#4c00b0" "Request Manager" 9
-
-# Management Tools
-add_app_to_db "Portainer" "http://$RPI_IP:9000" "" "#13bef9" "Docker Management" 10
-add_app_to_db "Watchtower" "http://$RPI_IP:8082" "" "#00d1b2" "Auto Updates" 11
-
-# System Info (no web UI but useful links)
-add_app_to_db "Unpackerr" "http://$RPI_IP:5656" "" "#e74c3c" "Archive Extractor" 12
+add_app "qBittorrent" "http://$RPI_IP:8080" "#2f7eed" "Torrent Client"
+add_app "Prowlarr" "http://$RPI_IP:9696" "#ffc230" "Indexer Manager"
+add_app "FlareSolverr" "http://$RPI_IP:8191" "#ff7b00" "Anti-Bot Solver"
+add_app "Sonarr" "http://$RPI_IP:8989" "#00ccff" "TV Shows Manager"
+add_app "Radarr" "http://$RPI_IP:7878" "#ffc230" "Movies Manager"
+add_app "Lidarr" "http://$RPI_IP:8686" "#00cc00" "Music Manager"
+add_app "Bazarr" "http://$RPI_IP:6767" "#8e44ad" "Subtitles Manager"
+add_app "Jellyfin" "http://$RPI_IP:8096" "#00a4dc" "Media Server"
+add_app "Jellyseerr" "http://$RPI_IP:5055" "#4c00b0" "Request Manager"
+add_app "Portainer" "http://$RPI_IP:9000" "#13bef9" "Docker Management"
 
 echo ""
-echo -e "${GREEN}✓ Heimdall configuration complete!${NC}"
-echo ""
 
-# Restart Heimdall to apply changes
-echo -e "${BLUE}Restarting Heimdall to apply changes...${NC}"
+# Verify the data
+echo -e "${BLUE}Verifying configuration...${NC}"
+ITEM_COUNT=$(sqlite3 "$HEIMDALL_DB" "SELECT COUNT(*) FROM items;")
+USER_PUBLIC=$(sqlite3 "$HEIMDALL_DB" "SELECT public_front FROM users WHERE id=1;")
+
+echo -e "  Items created: ${GREEN}$ITEM_COUNT${NC}"
+echo -e "  Public dashboard: ${GREEN}$([[ $USER_PUBLIC == 1 ]] && echo "Enabled" || echo "Disabled")${NC}"
+
+# Restart Heimdall to load new config
+echo -e "${BLUE}Restarting Heimdall...${NC}"
 docker restart heimdall
 
-sleep 3
+sleep 5
 
 echo ""
 echo -e "${CYAN}═══════════════════════════════════════${NC}"
-echo -e "${GREEN}Heimdall is ready!${NC}"
+echo -e "${GREEN}Heimdall is configured!${NC}"
 echo -e "${CYAN}═══════════════════════════════════════${NC}"
 echo ""
 echo -e "Access your dashboard at: ${GREEN}http://$RPI_IP:80${NC}"
 echo ""
-echo -e "${YELLOW}Note:${NC} You can customize icons and colors in the Heimdall web interface."
-echo "Click on any app tile to edit its settings."
+echo -e "${YELLOW}Note:${NC} The dashboard is public (no login required)."
+echo "You can customize icons and layouts directly in the web interface."
 echo ""
 
 # Show quick reference
