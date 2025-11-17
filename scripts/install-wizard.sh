@@ -875,6 +875,13 @@ run_installation() {
             local partition="${SELECTED_DRIVE}1"
 
             if [[ "$FORMAT_HDD" == true ]]; then
+                # Unmount any existing partitions on the drive before formatting
+                for part in $(lsblk -n -o NAME "$SELECTED_DRIVE" 2>/dev/null | tail -n +2); do
+                    umount "/dev/$part" 2>/dev/null || true
+                done
+                umount "${SELECTED_DRIVE}"* 2>/dev/null || true
+                sleep 1
+
                 # Full format and partition
                 parted -s "$SELECTED_DRIVE" mklabel gpt > /dev/null 2>&1 || true
                 parted -s "$SELECTED_DRIVE" mkpart primary ext4 0% 100% > /dev/null 2>&1 || true

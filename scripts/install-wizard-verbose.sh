@@ -670,6 +670,16 @@ run_installation() {
         local partition="${SELECTED_DRIVE}1"
 
         if [[ "$FORMAT_HDD" == true ]]; then
+            # Unmount any existing partitions on the drive before formatting
+            substep "Unmounting existing partitions on $SELECTED_DRIVE..."
+            for part in $(lsblk -n -o NAME "$SELECTED_DRIVE" | tail -n +2); do
+                umount "/dev/$part" 2>/dev/null || true
+            done
+            # Also try direct unmount
+            umount "${SELECTED_DRIVE}"* 2>/dev/null || true
+            sleep 1
+            success "Partitions unmounted"
+
             # Full format and partition
             substep "Creating partition on $SELECTED_DRIVE..."
             parted -s "$SELECTED_DRIVE" mklabel gpt
