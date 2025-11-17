@@ -30,12 +30,12 @@ cd "$PROJECT_ROOT"
 log_info "Creating missing config directories..."
 
 SERVICES=(
-    "apprise" "bazarr" "duplicati" "gluetun" "gotify"
+    "apprise" "bazarr" "code-server" "duplicati" "gluetun" "gotify"
     "heimdall" "homarr" "jellyfin" "jellyseerr" "komga"
     "lidarr" "mylar3" "navidrome" "netdata" "notifiarr"
     "ntfy" "photoprism" "portainer" "prowlarr" "qbittorrent"
-    "radarr" "readarr" "recyclarr" "scrutiny" "sonarr"
-    "tautulli" "threadfin" "uptime-kuma" "wireguard" "mailrise"
+    "radarr" "recyclarr" "scrutiny" "sonarr"
+    "tautulli" "uptime-kuma" "wireguard" "mailrise"
 )
 
 for service in "${SERVICES[@]}"; do

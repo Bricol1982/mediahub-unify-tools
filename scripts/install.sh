@@ -463,7 +463,7 @@ print_summary() {
     echo "  - Jellyseerr (Requests): http://$ip:5055"
     echo "  - Portainer (Docker): http://$ip:9000"
     echo "  - Pi-hole: http://$ip:8053/admin"
-    echo "  - Threadfin (IPTV): http://$ip:34400/web"
+    echo "  - Code-Server (VSCode): http://$ip:8444"
     echo "  - Netdata: http://$ip:19999"
     echo ""
     echo "Management commands:"

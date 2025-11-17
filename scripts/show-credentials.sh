@@ -130,7 +130,7 @@ echo -e "${BLUE}🏠 Homarr${NC}     http://localhost:7575  (Dashboard)"
 echo -e "${BLUE}📊 Netdata${NC}    http://localhost:19999 (Monitoring)"
 echo -e "${BLUE}📈 Uptime Kuma${NC} http://localhost:3001 (Status monitoring)"
 echo -e "${BLUE}📚 Komga${NC}      http://localhost:25600 (Comics/Manga)"
-echo -e "${BLUE}🎥 Threadfin${NC}  http://localhost:34400 (IPTV proxy)"
+echo -e "${BLUE}💻 Code-Server${NC} http://localhost:8444  (VSCode in browser)"
 echo ""
 
 # Storage Paths
@@ -212,7 +212,7 @@ Homarr:       http://localhost:7575
 Netdata:      http://localhost:19999
 Uptime Kuma:  http://localhost:3001
 Komga:        http://localhost:25600
-Threadfin:    http://localhost:34400
+Code-Server:  http://localhost:8444
 Photoprism:   http://localhost:2342
 Gotify:       http://localhost:8070
 Pi-hole:      http://localhost:8053/admin

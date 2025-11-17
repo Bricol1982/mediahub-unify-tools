@@ -34,10 +34,6 @@ Un mediacenter complet et auto-hébergé pour Raspberry Pi 4, basé sur Docker e
 - **Navidrome** - Serveur de streaming musical (alternative à Spotify)
 - **Komga** - Serveur de comics/manga avec lecteur web
 
-### IPTV & TV en direct
-
-- **Threadfin** - Proxy IPTV intégré à Jellyfin (TNT française)
-
 ### Dashboard et gestion
 
 - **Homarr** - Dashboard moderne et personnalisable
@@ -199,8 +195,7 @@ Après le démarrage, accédez aux services via votre navigateur :
 | qBittorrent | http://IP_RPI:8080 | 8080 |
 | Jellyseerr | http://IP_RPI:5055 | 5055 |
 | Bazarr | http://IP_RPI:6767 | 6767 |
-| Readarr | http://IP_RPI:8787 | 8787 |
-| Threadfin | http://IP_RPI:34400/web | 34400 |
+| Code-Server | http://IP_RPI:8444 | 8444 |
 | Portainer | http://IP_RPI:9000 | 9000 |
 | Uptime Kuma | http://IP_RPI:3001 | 3001 |
 | Notifiarr | http://IP_RPI:5454 | 5454 |
@@ -302,15 +297,7 @@ Contrôles avec la télécommande TV (via HDMI-CEC) :
 # Choisir option 5: TV Admin Panel
 ```
 
-### 5. IPTV - Chaînes TNT
-
-1. Accéder à Threadfin (port 34400/web)
-2. Ajouter une playlist M3U dans Settings > Files
-3. Importer la playlist : `/opt/mediahub/config/iptv/tnt-channels.m3u`
-4. Configurer Jellyfin pour utiliser Threadfin comme tuner HDHR
-5. **Note** : Vous devez ajouter les URLs de stream vous-même (sources légales)
-
-### 6. Configuration des indexeurs (sources de téléchargement)
+### 5. Configuration des indexeurs (sources de téléchargement)
 
 Prowlarr est déjà connecté à Sonarr/Radarr automatiquement. Il suffit d'ajouter des indexeurs :
 

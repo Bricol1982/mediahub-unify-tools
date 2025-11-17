@@ -57,7 +57,7 @@ create_credentials_file() {
     local sonarr_api=$(generate_simple_password 32)
     local radarr_api=$(generate_simple_password 32)
     local lidarr_api=$(generate_simple_password 32)
-    local readarr_api=$(generate_simple_password 32)
+    local code_server_pass=$(generate_password 16)
 
     # Create temporary plaintext credentials
     local temp_file=$(mktemp)
@@ -88,13 +88,16 @@ Jellyfin:
   Username: (set during first login)
   Suggested Password: $jellyfin_pass
 
+Code-Server (VSCode in browser):
+  URL: http://$(hostname -I | awk '{print $1}'):8444
+  Password: $code_server_pass
+
 === API KEYS (for service integration) ===
 
 Prowlarr API Key: $prowlarr_api
 Sonarr API Key: $sonarr_api
 Radarr API Key: $radarr_api
 Lidarr API Key: $lidarr_api
-Readarr API Key: $readarr_api
 
 === SERVICE URLs ===
 
@@ -105,12 +108,11 @@ Radarr: http://$(hostname -I | awk '{print $1}'):7878
 Lidarr: http://$(hostname -I | awk '{print $1}'):8686
 Prowlarr: http://$(hostname -I | awk '{print $1}'):9696
 Bazarr: http://$(hostname -I | awk '{print $1}'):6767
-Readarr: http://$(hostname -I | awk '{print $1}'):8787
+Code-Server: http://$(hostname -I | awk '{print $1}'):8444
 Mylar3: http://$(hostname -I | awk '{print $1}'):8090
 Komga: http://$(hostname -I | awk '{print $1}'):25600
 Navidrome: http://$(hostname -I | awk '{print $1}'):4533
 Jellyseerr: http://$(hostname -I | awk '{print $1}'):5055
-Threadfin: http://$(hostname -I | awk '{print $1}'):34400/web
 Portainer: http://$(hostname -I | awk '{print $1}'):9000
 Uptime Kuma: http://$(hostname -I | awk '{print $1}'):3001
 Netdata: http://$(hostname -I | awk '{print $1}'):19999
@@ -140,7 +142,7 @@ EOF
     shred -u "$temp_file" 2>/dev/null || rm -f "$temp_file"
 
     # Update .env with generated passwords
-    update_env_passwords "$qbit_pass" "$pihole_pass" "$photoprism_pass" "$sonarr_api" "$radarr_api" "$lidarr_api" "$readarr_api"
+    update_env_passwords "$qbit_pass" "$pihole_pass" "$photoprism_pass" "$sonarr_api" "$radarr_api" "$lidarr_api" "$code_server_pass"
 
     echo -e "${GREEN}Credentials generated and encrypted${NC}"
 }
@@ -152,7 +154,7 @@ update_env_passwords() {
     local sonarr_api="$4"
     local radarr_api="$5"
     local lidarr_api="$6"
-    local readarr_api="$7"
+    local code_server_pass="$7"
 
     if [[ -f "$ENV_FILE" ]]; then
         sed -i "s|^PIHOLE_PASSWORD=.*|PIHOLE_PASSWORD=$pihole_pass|" "$ENV_FILE"
@@ -160,7 +162,7 @@ update_env_passwords() {
         sed -i "s|^SONARR_API_KEY=.*|SONARR_API_KEY=$sonarr_api|" "$ENV_FILE"
         sed -i "s|^RADARR_API_KEY=.*|RADARR_API_KEY=$radarr_api|" "$ENV_FILE"
         sed -i "s|^LIDARR_API_KEY=.*|LIDARR_API_KEY=$lidarr_api|" "$ENV_FILE"
-        sed -i "s|^READARR_API_KEY=.*|READARR_API_KEY=$readarr_api|" "$ENV_FILE"
+        sed -i "s|^CODE_SERVER_PASSWORD=.*|CODE_SERVER_PASSWORD=$code_server_pass|" "$ENV_FILE"
     fi
 }
 

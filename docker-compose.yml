@@ -458,8 +458,9 @@ services:
       - UN_RADARR_0_API_KEY=${RADARR_API_KEY:-}
       - UN_LIDARR_0_URL=http://lidarr:8686
       - UN_LIDARR_0_API_KEY=${LIDARR_API_KEY:-}
-      - UN_READARR_0_URL=http://readarr:8787
-      - UN_READARR_0_API_KEY=${READARR_API_KEY:-}
+      # Readarr disabled for ARM64 memory optimization
+      # - UN_READARR_0_URL=http://readarr:8787
+      # - UN_READARR_0_API_KEY=${READARR_API_KEY:-}
     volumes:
       - ${DOWNLOAD_PATH}:/downloads
     restart: unless-stopped
@@ -792,15 +793,15 @@ services:
       - PUID=${PUID}
       - PGID=${PGID}
       - TZ=${TZ}
-      - PASSWORD=${CODE_SERVER_PASSWORD:-mediahub123}
-      - SUDO_PASSWORD=${CODE_SERVER_PASSWORD:-mediahub123}
+      - PASSWORD=${CODE_SERVER_PASSWORD}
+      - SUDO_PASSWORD=${CODE_SERVER_PASSWORD}
       - DEFAULT_WORKSPACE=/workspace
     volumes:
       - ${CONFIG_PATH}/code-server:/config
       - ${INSTALL_DIR:-/opt/mediahub}:/workspace
       - /var/run/docker.sock:/var/run/docker.sock
     ports:
-      - "8443:8443"
+      - "8444:8443"
     restart: unless-stopped
     networks:
       - medianet

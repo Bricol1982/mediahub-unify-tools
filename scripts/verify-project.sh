@@ -87,13 +87,13 @@ echo ""
 echo -e "${BLUE}3. Configuration Directories${NC}"
 
 CONFIG_DIRS=(
-    "apprise" "bazarr" "cec" "duplicati" "gluetun"
-    "gotify" "heimdall" "homarr" "iptv" "jellyfin"
+    "apprise" "bazarr" "code-server" "duplicati" "gluetun"
+    "gotify" "heimdall" "homarr" "i18n" "jellyfin"
     "jellyseerr" "komga" "lidarr" "mailrise" "mylar3"
     "navidrome" "netdata" "nginx-proxy-manager" "notifiarr"
     "ntfy" "photoprism" "pihole" "portainer" "prowlarr"
-    "qbittorrent" "radarr" "readarr" "recyclarr" "scrutiny"
-    "sonarr" "tautulli" "threadfin" "tv-admin" "uptime-kuma"
+    "qbittorrent" "radarr" "recyclarr" "scrutiny"
+    "sonarr" "tautulli" "tv-admin" "uptime-kuma"
     "welcome" "wireguard"
 )
 
