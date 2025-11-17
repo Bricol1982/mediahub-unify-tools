@@ -695,7 +695,7 @@ Tous les services essentiels PLUS:\n\
 Idéal pour: Systèmes puissants, fonctionnalités complètes" 22 60
             ;;
         custom)
-            CUSTOM_SERVICES=$($TUI --title "Pack Personnalisé" \
+            local raw_selection=$($TUI --title "Pack Personnalisé" \
                 --checklist "Sélectionnez les services à installer:" 25 70 15 \
                 "sonarr" "Gestionnaire Séries TV" ON \
                 "radarr" "Gestionnaire Films" ON \
@@ -715,6 +715,8 @@ Idéal pour: Systèmes puissants, fonctionnalités complètes" 22 60
                 "duplicati" "Solution Backup" OFF \
                 "watchtower" "Mises à jour Auto" ON \
                 3>&1 1>&2 2>&3)
+            # Remove quotes from whiptail output
+            CUSTOM_SERVICES=$(echo "$raw_selection" | tr -d '"')
             ;;
     esac
 
@@ -1122,6 +1124,7 @@ generate_all_passwords() {
     export QBITTORRENT_PASSWORD=$(openssl rand -base64 16 | tr -dc 'a-zA-Z0-9' | head -c 16)
     export PHOTOPRISM_PASSWORD=$(openssl rand -base64 16 | tr -dc 'a-zA-Z0-9' | head -c 16)
     export GOTIFY_PASSWORD=$(openssl rand -base64 16 | tr -dc 'a-zA-Z0-9' | head -c 16)
+    export CODE_SERVER_PASSWORD=$(openssl rand -base64 16 | tr -dc 'a-zA-Z0-9' | head -c 16)
 
     # Ensure install dir exists
     mkdir -p "$INSTALL_DIR" 2>/dev/null || true
@@ -1140,6 +1143,7 @@ JELLYFIN_PASSWORD=$JELLYFIN_PASSWORD
 QBITTORRENT_PASSWORD=$QBITTORRENT_PASSWORD
 PHOTOPRISM_PASSWORD=$PHOTOPRISM_PASSWORD
 GOTIFY_PASSWORD=$GOTIFY_PASSWORD
+CODE_SERVER_PASSWORD=$CODE_SERVER_PASSWORD
 OPENVPN_USER=$OPENVPN_USER
 OPENVPN_PASS=$OPENVPN_PASS
 EOF
@@ -1200,6 +1204,7 @@ PHOTOPRISM_ADMIN_PASSWORD=$PHOTOPRISM_PASSWORD
 GOTIFY_USER=admin
 GOTIFY_PASSWORD=$GOTIFY_PASSWORD
 PIHOLE_PASSWORD=$(openssl rand -base64 12 | tr -dc 'a-zA-Z0-9' | head -c 12)
+CODE_SERVER_PASSWORD=$CODE_SERVER_PASSWORD
 
 # Security
 MASTER_PASSWORD_HASH=$(echo -n "$MASTER_PASSWORD" | sha256sum | cut -d' ' -f1)
@@ -1269,9 +1274,16 @@ setup_tv_kiosk_mode() {
     local user_home=$(eval echo ~$KIOSK_USER)
     local DASHBOARD_URL="http://localhost:7575"
 
-    apt-get install -y -qq \
-        chromium-browser xserver-xorg x11-xserver-utils \
-        xinit openbox unclutter > /dev/null 2>&1
+    # Try chromium first (Debian Bookworm), fallback to chromium-browser
+    if apt-cache show chromium &>/dev/null; then
+        apt-get install -y -qq \
+            chromium xserver-xorg x11-xserver-utils \
+            xinit openbox unclutter > /dev/null 2>&1
+    else
+        apt-get install -y -qq \
+            chromium-browser xserver-xorg x11-xserver-utils \
+            xinit openbox unclutter > /dev/null 2>&1
+    fi
 
     # Configure auto-login on tty1
     mkdir -p /etc/systemd/system/getty@tty1.service.d/
@@ -1289,18 +1301,34 @@ xset s noblank
 xset -dpms
 unclutter -idle 5 -root &
 sleep 15
-chromium-browser \\
-    --kiosk \\
-    --disable-infobars \\
-    --disable-session-crashed-bubble \\
-    --disable-restore-session-state \\
-    --disable-features=TranslateUI \\
-    --noerrdialogs \\
-    --no-first-run \\
-    --start-fullscreen \\
-    --window-position=0,0 \\
-    --user-data-dir=/tmp/chromium-kiosk \\
-    "$DASHBOARD_URL"
+# Launch Chromium in kiosk mode (use chromium or chromium-browser depending on distro)
+if command -v chromium &>/dev/null; then
+    chromium \\
+        --kiosk \\
+        --disable-infobars \\
+        --disable-session-crashed-bubble \\
+        --disable-restore-session-state \\
+        --disable-features=TranslateUI \\
+        --noerrdialogs \\
+        --no-first-run \\
+        --start-fullscreen \\
+        --window-position=0,0 \\
+        --user-data-dir=/tmp/chromium-kiosk \\
+        "$DASHBOARD_URL"
+else
+    chromium-browser \\
+        --kiosk \\
+        --disable-infobars \\
+        --disable-session-crashed-bubble \\
+        --disable-restore-session-state \\
+        --disable-features=TranslateUI \\
+        --noerrdialogs \\
+        --no-first-run \\
+        --start-fullscreen \\
+        --window-position=0,0 \\
+        --user-data-dir=/tmp/chromium-kiosk \\
+        "$DASHBOARD_URL"
+fi
 EOF
     chown -R "$KIOSK_USER:$KIOSK_USER" "$user_home/.config/openbox"
 
@@ -1328,7 +1356,7 @@ EOF
     mkdir -p "$INSTALL_DIR/scripts"
     cat > "$INSTALL_DIR/scripts/change-dashboard.sh" << 'EOF'
 #!/bin/bash
-CURRENT_URL=$(grep "chromium-browser" ~/.config/openbox/autostart | grep -oP 'http[s]?://[^ ]+' | tail -1)
+CURRENT_URL=$(grep -E "chromium|chromium-browser" ~/.config/openbox/autostart | grep -oP 'http[s]?://[^ ]+' | tail -1)
 echo "Current dashboard: $CURRENT_URL"
 echo "Options: 1=Homarr 2=Jellyfin 3=Komga 4=Navidrome 5=Admin 6=Uptime 7=Custom"
 read -p "Choice: " c
@@ -1345,7 +1373,7 @@ EOF
 
     cat > "$INSTALL_DIR/scripts/refresh-dashboard.sh" << 'EOF'
 #!/bin/bash
-pkill -f chromium-browser
+pkill -f chromium
 EOF
     chmod +x "$INSTALL_DIR/scripts/refresh-dashboard.sh"
     chown -R "$KIOSK_USER:$KIOSK_USER" "$INSTALL_DIR/scripts/" 2>/dev/null || true
