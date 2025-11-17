@@ -448,6 +448,54 @@ select_hdd() {
     return 0
 }
 
+select_ssd() {
+    # Only show if HDD was selected (dual storage setup)
+    if [[ "$USE_EXTERNAL_HDD" != true ]]; then
+        USE_SSD=false
+        return 0
+    fi
+
+    local ssd_choice=$($TUI --title "SSD Configuration" \
+        --yesno "Do you want to use an SSD for Docker and downloads?\n\nThis improves performance by:\n• Storing Docker images/containers on SSD\n• Using SSD for active downloads\n• Auto-moving completed downloads to HDD\n\nRecommended for better I/O performance." 16 70 3>&1 1>&2 2>&3)
+
+    if [[ $? -eq 0 ]]; then
+        # User wants SSD
+        local drives=$(lsblk -d -o NAME,SIZE,MODEL -n 2>/dev/null | grep -E "^sd|^nvme" | grep -v "$(basename ${SELECTED_DRIVE:-none})" | awk '{print $1 " " $2 "-" $3}')
+
+        if [[ -z "$drives" ]]; then
+            $TUI --title "No SSD Found" \
+                --msgbox "No additional drives found for SSD.\nContinuing without SSD acceleration." 10 50
+            USE_SSD=false
+            return 0
+        fi
+
+        local options=()
+        while IFS= read -r line; do
+            local dev=$(echo "$line" | awk '{print $1}')
+            local info=$(echo "$line" | awk '{print $2}')
+            options+=("$dev" "$info")
+        done <<< "$drives"
+
+        local selected=$($TUI --title "Select SSD" \
+            --menu "Select SSD for Docker and downloads:\n\nWARNING: Will be formatted!" 18 70 5 \
+            "${options[@]}" \
+            "SKIP" "Don't use SSD" 3>&1 1>&2 2>&3)
+
+        if [[ "$selected" == "SKIP" ]] || [[ -z "$selected" ]]; then
+            USE_SSD=false
+        else
+            SELECTED_SSD="/dev/$selected"
+            USE_SSD=true
+
+            $TUI --title "SSD Warning" \
+                --msgbox "SSD $SELECTED_SSD will be FORMATTED!\n\nAll data will be ERASED.\n\nThe SSD will be used for:\n• Docker images and containers\n• Active downloads (cache)\n• Completed files auto-moved to HDD" 14 60
+        fi
+    else
+        USE_SSD=false
+    fi
+    return 0
+}
+
 select_installation_pack() {
     INSTALLATION_PACK=$($TUI --title "Installation Pack" \
         --menu "Choose your installation pack:\n\nThis determines which services will be installed." 20 70 4 \
@@ -563,6 +611,11 @@ show_summary() {
         fi
     else
         summary+="External HDD: None\n"
+    fi
+    if [[ "$USE_SSD" == true ]]; then
+        summary+="SSD for Docker/Downloads: $SELECTED_SSD (will be formatted)\n"
+        summary+="  - Docker images/containers on SSD\n"
+        summary+="  - Downloads on SSD, auto-moved to HDD\n"
     fi
     summary+="\nFeatures: $FEATURES\n\n"
     summary+="Continue with installation?"
@@ -822,6 +875,132 @@ run_installation() {
         mkdir -p /mnt/media/{library/{tv,movies,music,books,comics,photos},downloads}
         mkdir -p /mnt/media/library/photos/{originals,import}
         chown -R ${SUDO_USER:-pi}:${SUDO_USER:-pi} /mnt/media 2>/dev/null || true
+    fi
+
+    # ========== SSD SETUP (PERFORMANCE OPTIMIZATION) ==========
+    if [[ "$USE_SSD" == true ]] && [[ -n "$SELECTED_SSD" ]]; then
+        phase "SSD SETUP FOR PERFORMANCE"
+        step "Preparing SSD: $SELECTED_SSD"
+
+        local ssd_partition="${SELECTED_SSD}1"
+
+        # Unmount any existing partitions on the SSD
+        substep "Unmounting existing partitions on $SELECTED_SSD..."
+        for part in $(lsblk -n -o NAME "$SELECTED_SSD" | tail -n +2); do
+            swapoff "/dev/$part" 2>/dev/null || true
+        done
+        fuser -km "$SELECTED_SSD"* 2>/dev/null || true
+        sleep 1
+        for part in $(lsblk -n -o NAME "$SELECTED_SSD" | tail -n +2); do
+            umount -f "/dev/$part" 2>/dev/null || true
+            umount -l "/dev/$part" 2>/dev/null || true
+        done
+        umount -f "${SELECTED_SSD}"* 2>/dev/null || true
+        umount -l "${SELECTED_SSD}"* 2>/dev/null || true
+        for part in $(lsblk -n -o NAME "$SELECTED_SSD" | tail -n +2); do
+            dmsetup remove "/dev/$part" 2>/dev/null || true
+        done
+        sleep 2
+        success "SSD partitions unmounted"
+
+        # Format SSD
+        substep "Creating partition on $SELECTED_SSD..."
+        parted -s "$SELECTED_SSD" mklabel gpt
+        parted -s "$SELECTED_SSD" mkpart primary ext4 0% 100%
+        sleep 2
+        ssd_partition="${SELECTED_SSD}1"
+        success "SSD partition created: $ssd_partition"
+
+        substep "Formatting $ssd_partition as ext4..."
+        mkfs.ext4 -F -L mediahub-ssd "$ssd_partition" 2>&1 | head -20
+        success "SSD partition formatted as ext4"
+
+        # Create SSD mount point
+        substep "Creating SSD mount point..."
+        mkdir -p /mnt/ssd
+        success "Mount point created: /mnt/ssd"
+
+        # Mount SSD
+        substep "Mounting SSD to /mnt/ssd..."
+        mount "$ssd_partition" /mnt/ssd
+        success "SSD mounted to /mnt/ssd"
+
+        # Add to fstab for auto-mount
+        local ssd_uuid=$(blkid -s UUID -o value "$ssd_partition")
+        if ! grep -q "$ssd_uuid" /etc/fstab; then
+            substep "Adding SSD to /etc/fstab for auto-mount..."
+            echo "UUID=$ssd_uuid /mnt/ssd ext4 defaults,noatime,nofail 0 2" >> /etc/fstab
+            success "SSD auto-mount configured"
+        fi
+
+        # Create SSD directories
+        substep "Creating SSD directory structure..."
+        mkdir -p /mnt/ssd/{docker,downloads/{incomplete,complete}}
+        chown -R ${SUDO_USER:-pi}:${SUDO_USER:-pi} /mnt/ssd
+        chmod -R 755 /mnt/ssd
+        success "SSD directories created"
+
+        # Override Docker data root to use SSD
+        DOCKER_DATA_ROOT="/mnt/ssd/docker"
+        info "Docker images will now be stored on SSD: $DOCKER_DATA_ROOT"
+
+        # Set download paths to SSD
+        DOWNLOAD_PATH_SSD="/mnt/ssd/downloads"
+        USE_SSD_DOWNLOADS=true
+        info "Downloads will use SSD for speed: $DOWNLOAD_PATH_SSD"
+
+        # Show SSD info
+        df -h /mnt/ssd
+
+        # Create auto-move script for completed downloads
+        substep "Creating auto-move script for completed downloads..."
+        cat > "$INSTALL_DIR/scripts/move-completed-downloads.sh" << 'MOVEEOF'
+#!/bin/bash
+# Auto-move completed downloads from SSD to HDD
+# Run by cron every 5 minutes
+
+SSD_COMPLETE="/mnt/ssd/downloads/complete"
+HDD_DOWNLOADS="/mnt/media/downloads"
+LOG_FILE="/var/log/mediahub-automove.log"
+
+# Check if both paths exist
+if [[ ! -d "$SSD_COMPLETE" ]] || [[ ! -d "$HDD_DOWNLOADS" ]]; then
+    exit 0
+fi
+
+# Find and move completed files (older than 1 minute to ensure complete)
+find "$SSD_COMPLETE" -mindepth 1 -maxdepth 1 -mmin +1 -print0 2>/dev/null | while IFS= read -r -d '' item; do
+    if [[ -e "$item" ]]; then
+        name=$(basename "$item")
+        echo "$(date '+%Y-%m-%d %H:%M:%S') Moving: $name" >> "$LOG_FILE"
+        mv "$item" "$HDD_DOWNLOADS/" 2>> "$LOG_FILE"
+        if [[ $? -eq 0 ]]; then
+            echo "$(date '+%Y-%m-%d %H:%M:%S') SUCCESS: $name moved to HDD" >> "$LOG_FILE"
+        else
+            echo "$(date '+%Y-%m-%d %H:%M:%S') ERROR: Failed to move $name" >> "$LOG_FILE"
+        fi
+    fi
+done
+
+# Keep log file from growing too large
+if [[ -f "$LOG_FILE" ]] && [[ $(wc -l < "$LOG_FILE") -gt 1000 ]]; then
+    tail -500 "$LOG_FILE" > "$LOG_FILE.tmp"
+    mv "$LOG_FILE.tmp" "$LOG_FILE"
+fi
+MOVEEOF
+        chmod +x "$INSTALL_DIR/scripts/move-completed-downloads.sh"
+        success "Auto-move script created"
+
+        # Add cron job for auto-move
+        substep "Setting up automatic move from SSD to HDD..."
+        (crontab -l 2>/dev/null || true; echo "*/5 * * * * $INSTALL_DIR/scripts/move-completed-downloads.sh") | sort -u | crontab -
+        success "Cron job added (every 5 minutes)"
+
+        info "SSD setup complete:"
+        info "  - Docker: /mnt/ssd/docker"
+        info "  - Downloads (active): /mnt/ssd/downloads"
+        info "  - Media storage: /mnt/media/library"
+        info "  - Completed downloads auto-moved to HDD"
     fi
 
     # ========== DOCKER CONFIGURATION (AFTER HDD MOUNT) ==========
@@ -1310,8 +1489,15 @@ TZ=Europe/Paris
 INSTALL_DIR=$INSTALL_DIR
 CONFIG_PATH=$INSTALL_DIR/config
 MEDIA_PATH=/mnt/media/library
-DOWNLOAD_PATH=/mnt/media/downloads
+DOWNLOAD_PATH=$([[ "$USE_SSD_DOWNLOADS" == true ]] && echo "/mnt/ssd/downloads" || echo "/mnt/media/downloads")
+DOWNLOAD_PATH_INCOMPLETE=$([[ "$USE_SSD_DOWNLOADS" == true ]] && echo "/mnt/ssd/downloads/incomplete" || echo "/mnt/media/downloads/incomplete")
+DOWNLOAD_PATH_COMPLETE=$([[ "$USE_SSD_DOWNLOADS" == true ]] && echo "/mnt/ssd/downloads/complete" || echo "/mnt/media/downloads")
 BACKUP_PATH=$INSTALL_DIR/backups
+
+# SSD Configuration (Performance)
+USE_SSD=$([[ "$USE_SSD" == true ]] && echo "true" || echo "false")
+SSD_PATH=$([[ "$USE_SSD" == true ]] && echo "/mnt/ssd" || echo "")
+SSD_DEVICE=${SELECTED_SSD:-}
 
 # VPN Configuration
 VPN_SERVICE_PROVIDER=${VPN_SERVICE_PROVIDER:-none}
@@ -1670,6 +1856,9 @@ main() {
     if ! select_hdd; then
         exit 1
     fi
+
+    # Select SSD for performance (optional)
+    select_ssd
 
     # Select installation pack
     select_installation_pack
