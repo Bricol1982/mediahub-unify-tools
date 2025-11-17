@@ -74,10 +74,10 @@ add_app_to_db() {
         return
     fi
 
-    # Insert into database with NULL user_id for public visibility
+    # Insert into database with user_id=0 for public visibility (no login required)
     sqlite3 "$HEIMDALL_DB" "
         INSERT INTO items (title, url, colour, icon, description, pinned, type, user_id, created_at, updated_at, \"order\", deleted_at, class)
-        VALUES ('$title', '$url', '$color', '$icon', '$description', 1, 1, NULL, datetime('now'), datetime('now'), $order, NULL, 'item');
+        VALUES ('$title', '$url', '$color', '$icon', '$description', 1, 0, 0, datetime('now'), datetime('now'), $order, NULL, 'item');
     " 2>/dev/null
 
     if [[ $? -eq 0 ]]; then
