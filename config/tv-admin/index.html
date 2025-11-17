@@ -1,0 +1,1472 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MediaHub TV Admin</title>
+    <style>
+        :root {
+            --bg: #0a0a0a;
+            --card: #1a1a1a;
+            --accent: #00d4ff;
+            --success: #00ff88;
+            --warning: #ffaa00;
+            --danger: #ff4444;
+            --text: #ffffff;
+            --dim: #666666;
+            --focus: rgba(0, 212, 255, 0.3);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .app {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            padding: 30px;
+        }
+
+        /* Header */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 20px;
+            border-bottom: 2px solid var(--card);
+        }
+
+        .logo {
+            font-size: 2.5em;
+            font-weight: bold;
+            color: var(--accent);
+        }
+
+        .top-status {
+            display: flex;
+            gap: 40px;
+            font-size: 1.3em;
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        .dot.ok { background: var(--success); }
+        .dot.warn { background: var(--warning); }
+        .dot.err { background: var(--danger); }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* Navigation Tabs */
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin: 20px 0;
+            background: var(--card);
+            padding: 10px;
+            border-radius: 10px;
+            border: 2px solid transparent;
+            transition: border-color 0.3s;
+        }
+
+        .tabs.active-level {
+            border-color: var(--accent);
+        }
+
+        .tab {
+            padding: 15px 30px;
+            background: transparent;
+            border: 2px solid transparent;
+            border-radius: 8px;
+            color: var(--dim);
+            font-size: 1.2em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .tab.active {
+            background: var(--accent);
+            color: #000;
+            border-color: var(--accent);
+        }
+
+        .tab.focused {
+            border-color: #fff;
+            box-shadow: 0 0 20px var(--focus);
+            animation: tab-pulse 1s infinite;
+        }
+
+        @keyframes tab-pulse {
+            0%, 100% { box-shadow: 0 0 20px var(--focus); }
+            50% { box-shadow: 0 0 35px var(--focus); }
+        }
+
+        /* Main Content */
+        .content {
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .page {
+            display: none;
+            height: 100%;
+        }
+
+        .page.active {
+            display: block;
+        }
+
+        /* Grid layouts */
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            height: 100%;
+        }
+
+        .grid-3 {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+        }
+
+        .grid-4 {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+        }
+
+        /* Cards */
+        .card {
+            background: var(--card);
+            border-radius: 12px;
+            padding: 20px;
+            border: 2px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .card.focusable.focused {
+            border-color: var(--accent);
+            box-shadow: 0 0 25px var(--focus), inset 0 0 20px rgba(0, 212, 255, 0.1);
+            transform: scale(1.02);
+            animation: card-pulse 1.5s infinite;
+        }
+
+        @keyframes card-pulse {
+            0%, 100% { box-shadow: 0 0 25px var(--focus), inset 0 0 20px rgba(0, 212, 255, 0.1); }
+            50% { box-shadow: 0 0 40px var(--focus), inset 0 0 30px rgba(0, 212, 255, 0.15); }
+        }
+
+        .card h3 {
+            color: var(--accent);
+            margin-bottom: 15px;
+            font-size: 1.4em;
+        }
+
+        /* Service Items */
+        .service-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 15px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 8px;
+            margin-bottom: 8px;
+            border: 2px solid transparent;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .service-item.focused {
+            border-color: var(--accent);
+            background: var(--focus);
+            animation: item-pulse 1s infinite;
+        }
+
+        @keyframes item-pulse {
+            0%, 100% { background: var(--focus); }
+            50% { background: rgba(0, 212, 255, 0.4); }
+        }
+
+        .service-status {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: bold;
+        }
+
+        .service-status.running {
+            background: var(--success);
+            color: #000;
+        }
+
+        .service-status.stopped {
+            background: var(--danger);
+        }
+
+        /* Action Buttons */
+        .action-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 25px;
+            background: rgba(255,255,255,0.1);
+            border: 3px solid transparent;
+            border-radius: 12px;
+            color: var(--text);
+            font-size: 1.1em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+            min-height: 120px;
+        }
+
+        .action-btn .icon {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .action-btn.focused {
+            border-color: var(--accent);
+            background: var(--focus);
+            transform: scale(1.05);
+            animation: action-pulse 1s infinite;
+        }
+
+        @keyframes action-pulse {
+            0%, 100% { transform: scale(1.05); border-color: var(--accent); }
+            50% { transform: scale(1.08); border-color: #fff; }
+        }
+
+        .action-btn.primary { background: rgba(0, 212, 255, 0.2); }
+        .action-btn.success { background: rgba(0, 255, 136, 0.2); }
+        .action-btn.warning { background: rgba(255, 170, 0, 0.2); }
+        .action-btn.danger { background: rgba(255, 68, 68, 0.2); }
+
+        /* Stats */
+        .stat-big {
+            text-align: center;
+            padding: 20px;
+        }
+
+        .stat-value {
+            font-size: 3.5em;
+            font-weight: bold;
+            color: var(--accent);
+        }
+
+        .stat-label {
+            color: var(--dim);
+            margin-top: 5px;
+            font-size: 1.3em;
+        }
+
+        /* Progress bars */
+        .progress-container {
+            margin: 15px 0;
+        }
+
+        .progress-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        .progress-bar {
+            height: 25px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--accent);
+            transition: width 0.5s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+
+        .progress-fill.warn { background: var(--warning); }
+        .progress-fill.danger { background: var(--danger); }
+
+        /* Notifications */
+        .notif-list {
+            max-height: calc(100% - 60px);
+            overflow-y: auto;
+        }
+
+        .notif-item {
+            padding: 15px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 8px;
+            margin-bottom: 10px;
+            border-left: 4px solid var(--accent);
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .notif-item.focused {
+            border-color: var(--accent);
+            background: var(--focus);
+        }
+
+        .notif-item.warn { border-left-color: var(--warning); }
+        .notif-item.danger { border-left-color: var(--danger); }
+        .notif-item.success { border-left-color: var(--success); }
+
+        .notif-time {
+            color: var(--dim);
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+
+        /* Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.9);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal {
+            background: var(--card);
+            padding: 40px;
+            border-radius: 20px;
+            max-width: 700px;
+            width: 90%;
+            border: 3px solid var(--accent);
+        }
+
+        .modal h2 {
+            color: var(--accent);
+            margin-bottom: 20px;
+            font-size: 2em;
+        }
+
+        .modal p {
+            font-size: 1.3em;
+            margin-bottom: 30px;
+            line-height: 1.5;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 20px;
+        }
+
+        .modal-btn {
+            flex: 1;
+            padding: 20px;
+            border: 3px solid transparent;
+            border-radius: 10px;
+            font-size: 1.3em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .modal-btn.confirm {
+            background: var(--success);
+            color: #000;
+        }
+
+        .modal-btn.cancel {
+            background: rgba(255,255,255,0.1);
+        }
+
+        .modal-btn.focused {
+            border-color: var(--accent);
+            transform: scale(1.05);
+        }
+
+        /* Help bar */
+        .help-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0,0,0,0.95);
+            padding: 15px 30px;
+            display: flex;
+            justify-content: center;
+            gap: 50px;
+            border-top: 2px solid var(--card);
+        }
+
+        .help-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 1.1em;
+        }
+
+        .key {
+            background: var(--accent);
+            color: #000;
+            padding: 5px 12px;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+
+        /* Loading indicator */
+        .loading {
+            position: fixed;
+            top: 20px;
+            right: 30px;
+            background: var(--accent);
+            color: #000;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: bold;
+            display: none;
+            animation: blink 1s infinite;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* Toast notifications */
+        .toast {
+            position: fixed;
+            top: 80px;
+            right: 30px;
+            background: var(--success);
+            color: #000;
+            padding: 15px 25px;
+            border-radius: 10px;
+            font-weight: bold;
+            font-size: 1.2em;
+            transform: translateX(150%);
+            transition: transform 0.3s ease;
+            z-index: 2000;
+        }
+
+        .toast.show {
+            transform: translateX(0);
+        }
+
+        .toast.error {
+            background: var(--danger);
+            color: #fff;
+        }
+
+        .toast.warning {
+            background: var(--warning);
+            color: #000;
+        }
+
+        /* Content padding for help bar */
+        .content {
+            flex: 1;
+            overflow: hidden;
+            padding-bottom: 60px;
+        }
+
+        /* Skip navigation indicator */
+        .skip-indicator {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            border: 3px solid var(--accent);
+            padding: 30px 50px;
+            border-radius: 15px;
+            font-size: 2em;
+            font-weight: bold;
+            color: var(--accent);
+            display: none;
+            z-index: 3000;
+            animation: skip-appear 0.3s ease;
+        }
+
+        .skip-indicator.show {
+            display: block;
+        }
+
+        @keyframes skip-appear {
+            from { transform: translate(-50%, -50%) scale(0.8); opacity: 0; }
+            to { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        }
+
+        /* High contrast mode indicator */
+        .focus-mode-indicator {
+            position: fixed;
+            top: 80px;
+            left: 30px;
+            background: var(--accent);
+            color: #000;
+            padding: 8px 15px;
+            border-radius: 8px;
+            font-weight: bold;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .focus-mode-indicator.show {
+            opacity: 1;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--card);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--accent);
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <header>
+            <div class="logo">📺 MediaHub Admin</div>
+            <div class="top-status">
+                <div class="status-badge">
+                    <div class="dot" id="vpnDot"></div>
+                    <span id="vpnLabel">VPN</span>
+                </div>
+                <div class="status-badge">
+                    <div class="dot" id="netDot"></div>
+                    <span>Internet</span>
+                </div>
+                <div class="status-badge">
+                    <span id="clock"></span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Navigation Tabs -->
+        <div class="tabs" id="tabsContainer">
+            <div class="tab active" data-page="dashboard">📊 Dashboard</div>
+            <div class="tab" data-page="services">🚀 Services</div>
+            <div class="tab" data-page="actions">⚡ Actions</div>
+            <div class="tab" data-page="notifications">🔔 Notifications</div>
+            <div class="tab" data-page="settings">⚙️ Paramètres</div>
+        </div>
+
+        <!-- Content Pages -->
+        <div class="content">
+            <!-- Dashboard Page -->
+            <div class="page active" id="page-dashboard">
+                <div class="grid-2">
+                    <div class="card">
+                        <h3>📈 Système</h3>
+                        <div class="grid-2">
+                            <div class="stat-big">
+                                <div class="stat-value" id="cpuTemp">--°C</div>
+                                <div class="stat-label">CPU Temp</div>
+                            </div>
+                            <div class="stat-big">
+                                <div class="stat-value" id="ramUsage">--%</div>
+                                <div class="stat-label">RAM</div>
+                            </div>
+                        </div>
+                        <div class="progress-container">
+                            <div class="progress-label">
+                                <span>HDD Media</span>
+                                <span id="hddText">--%</span>
+                            </div>
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="hddBar" style="width:0%"></div>
+                            </div>
+                        </div>
+                        <div class="progress-container">
+                            <div class="progress-label">
+                                <span>Carte SD</span>
+                                <span id="sdText">--%</span>
+                            </div>
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="sdBar" style="width:0%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <h3>🎬 Bibliothèque</h3>
+                        <div class="grid-2">
+                            <div class="stat-big">
+                                <div class="stat-value" id="moviesCount">--</div>
+                                <div class="stat-label">Films</div>
+                            </div>
+                            <div class="stat-big">
+                                <div class="stat-value" id="tvCount">--</div>
+                                <div class="stat-label">Séries</div>
+                            </div>
+                            <div class="stat-big">
+                                <div class="stat-value" id="musicCount">--</div>
+                                <div class="stat-label">Albums</div>
+                            </div>
+                            <div class="stat-big">
+                                <div class="stat-value" id="comicsCount">--</div>
+                                <div class="stat-label">Comics</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Services Page -->
+            <div class="page" id="page-services">
+                <div class="grid-2">
+                    <div class="card">
+                        <h3>Services Critiques</h3>
+                        <div id="criticalServices"></div>
+                    </div>
+                    <div class="card">
+                        <h3>Autres Services</h3>
+                        <div id="otherServices"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Actions Page -->
+            <div class="page" id="page-actions">
+                <div class="grid-4" id="actionsGrid">
+                    <div class="action-btn success focusable" data-action="restart">
+                        <div class="icon">🔄</div>
+                        <div>Redémarrer Services</div>
+                    </div>
+                    <div class="action-btn primary focusable" data-action="update">
+                        <div class="icon">⬆️</div>
+                        <div>Mettre à jour</div>
+                    </div>
+                    <div class="action-btn focusable" data-action="backup">
+                        <div class="icon">💾</div>
+                        <div>Sauvegarde</div>
+                    </div>
+                    <div class="action-btn focusable" data-action="health">
+                        <div class="icon">🏥</div>
+                        <div>Diagnostic</div>
+                    </div>
+                    <div class="action-btn warning focusable" data-action="logs">
+                        <div class="icon">📋</div>
+                        <div>Voir Logs</div>
+                    </div>
+                    <div class="action-btn focusable" data-action="dashboard">
+                        <div class="icon">📺</div>
+                        <div>Changer Vue</div>
+                    </div>
+                    <div class="action-btn primary focusable" data-action="switch-pack">
+                        <div class="icon">📦</div>
+                        <div>Changer Pack</div>
+                    </div>
+                    <div class="action-btn danger focusable" data-action="reboot">
+                        <div class="icon">🔌</div>
+                        <div>Redémarrer Pi</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pack Selector Modal -->
+            <div id="packModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.9); z-index:1000; padding:50px;">
+                <div style="max-width:800px; margin:0 auto; background:var(--bg); border-radius:15px; padding:30px;">
+                    <h2 style="color:var(--accent); margin-bottom:20px;">📦 Changer de Pack d'Installation</h2>
+                    <p style="margin-bottom:20px;">Pack actuel: <strong id="currentPackName">--</strong></p>
+                    <div class="grid-3">
+                        <div class="card focusable pack-option" data-pack="minimal" style="cursor:pointer;">
+                            <h3 style="color:var(--success);">🟢 Minimal</h3>
+                            <p><strong>7 services</strong></p>
+                            <p>RAM: ~1.5GB</p>
+                            <p style="font-size:0.9em; color:var(--dim);">VPN, Downloads, Jellyfin</p>
+                        </div>
+                        <div class="card focusable pack-option" data-pack="essential" style="cursor:pointer;">
+                            <h3 style="color:var(--warning);">🟡 Essential</h3>
+                            <p><strong>15 services</strong></p>
+                            <p>RAM: ~3GB</p>
+                            <p style="font-size:0.9em; color:var(--dim);">+ Gestion, Dashboard, Auto-updates</p>
+                        </div>
+                        <div class="card focusable pack-option" data-pack="full" style="cursor:pointer;">
+                            <h3 style="color:var(--danger);">🔴 Full</h3>
+                            <p><strong>30+ services</strong></p>
+                            <p>RAM: ~6GB</p>
+                            <p style="font-size:0.9em; color:var(--dim);">+ Monitoring, Photos, Music</p>
+                        </div>
+                    </div>
+                    <p style="margin-top:20px; text-align:center; color:var(--dim);">Appuyez sur Échap pour annuler</p>
+                </div>
+            </div>
+
+            <!-- Notifications Page -->
+            <div class="page" id="page-notifications">
+                <div class="card" style="height: 100%;">
+                    <h3>Notifications Récentes</h3>
+                    <div class="notif-list" id="notifList"></div>
+                </div>
+            </div>
+
+            <!-- Settings Page -->
+            <div class="page" id="page-settings">
+                <div class="grid-3">
+                    <div class="card focusable" data-setting="vpn">
+                        <h3>🔒 VPN</h3>
+                        <p>Statut: <span id="vpnStatus">--</span></p>
+                        <p>IP: <span id="vpnIP">--</span></p>
+                        <p>Pays: <span id="vpnCountry">--</span></p>
+                    </div>
+                    <div class="card focusable" data-setting="passwords">
+                        <h3>🔑 Mots de passe</h3>
+                        <p>Voir les credentials générés</p>
+                        <p style="color: var(--dim);">Nécessite mot de passe maître</p>
+                    </div>
+                    <div class="card focusable" data-setting="backup">
+                        <h3>💾 Sauvegardes</h3>
+                        <p>Dernière: <span id="lastBackup">--</span></p>
+                        <p>Prochaine: 03:00</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading indicator -->
+    <div class="loading" id="loadingIndicator">⏳ Chargement...</div>
+
+    <!-- Toast notification -->
+    <div class="toast" id="toast"></div>
+
+    <!-- Skip indicator for fast navigation -->
+    <div class="skip-indicator" id="skipIndicator"></div>
+
+    <!-- Focus mode indicator -->
+    <div class="focus-mode-indicator" id="focusModeIndicator">Mode Navigation</div>
+
+    <!-- Modal -->
+    <div class="modal-overlay" id="modalOverlay">
+        <div class="modal">
+            <h2 id="modalTitle">Confirmation</h2>
+            <p id="modalMessage"></p>
+            <div class="modal-buttons">
+                <button class="modal-btn confirm" id="modalConfirm">Confirmer</button>
+                <button class="modal-btn cancel" id="modalCancel">Annuler</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Help Modal -->
+    <div class="modal-overlay" id="helpOverlay">
+        <div class="modal" style="max-width: 900px;">
+            <h2>🎮 Guide des contrôles</h2>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; font-size: 1.1em;">
+                <div>
+                    <h3 style="color: var(--accent); margin-bottom: 10px;">Navigation</h3>
+                    <p>← → : Changer d'onglet</p>
+                    <p>↑ ↓ : Naviguer dans le contenu</p>
+                    <p>OK/Enter : Sélectionner</p>
+                    <p>BACK/Escape : Retour aux onglets</p>
+                    <p>1-5 : Accès direct aux onglets</p>
+                </div>
+                <div>
+                    <h3 style="color: var(--accent); margin-bottom: 10px;">Raccourcis</h3>
+                    <p>R : Rafraîchir les données</p>
+                    <p>H : Retour à Homarr</p>
+                    <p>Home : Premier onglet</p>
+                    <p>End : Dernier onglet</p>
+                    <p>? : Cette aide</p>
+                </div>
+            </div>
+            <div style="margin-top: 20px; text-align: center;">
+                <button class="modal-btn cancel" onclick="document.getElementById('helpOverlay').classList.remove('active')">
+                    Fermer (Escape)
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Help Bar -->
+    <div class="help-bar">
+        <div class="help-item"><span class="key">←→</span> Onglets</div>
+        <div class="help-item"><span class="key">↑↓</span> Navigation</div>
+        <div class="help-item"><span class="key">OK</span> Sélectionner</div>
+        <div class="help-item"><span class="key">BACK</span> Retour</div>
+        <div class="help-item"><span class="key">1-5</span> Onglet direct</div>
+        <div class="help-item"><span class="key">R</span> Rafraîchir</div>
+        <div class="help-item" style="color: var(--dim);" id="positionIndicator">Position: --</div>
+    </div>
+
+    <script>
+        // State management
+        const state = {
+            currentTab: 0,
+            focusLevel: 'tabs', // 'tabs', 'content', 'modal'
+            contentFocus: 0,
+            modalFocus: 0,
+            services: [],
+            notifications: []
+        };
+
+        const tabs = document.querySelectorAll('.tab');
+        const pages = ['dashboard', 'services', 'actions', 'notifications', 'settings'];
+        const API = window.location.origin;
+
+        // Update clock
+        function updateClock() {
+            const now = new Date();
+            document.getElementById('clock').textContent = now.toLocaleString('fr-FR', {
+                weekday: 'short', hour: '2-digit', minute: '2-digit'
+            });
+        }
+
+        // Show loading indicator
+        function showLoading() {
+            document.getElementById('loadingIndicator').classList.add('active');
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingIndicator').classList.remove('active');
+        }
+
+        // Toast notifications
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = `toast ${type} show`;
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        // Fetch all data
+        async function fetchData() {
+            showLoading();
+            try {
+                const res = await fetch(`${API}/api/status`);
+                const data = await res.json();
+                updateDashboard(data);
+                hideLoading();
+            } catch (e) {
+                console.error('Fetch error:', e);
+                updateDashboard(getMockData());
+                hideLoading();
+            }
+        }
+
+        function getMockData() {
+            return {
+                vpn: { connected: true, ip: '185.x.x.x', country: 'NL' },
+                internet: true,
+                cpu_temp: 52,
+                memory: { used: 62 },
+                disk: { used: 45 },
+                sd: { used: 28 },
+                services: [
+                    { name: 'Jellyfin', container: 'jellyfin', status: 'running', critical: true },
+                    { name: 'Sonarr', container: 'sonarr', status: 'running', critical: true },
+                    { name: 'Radarr', container: 'radarr', status: 'running', critical: true },
+                    { name: 'qBittorrent', container: 'qbittorrent', status: 'running', critical: true },
+                    { name: 'Gluetun (VPN)', container: 'gluetun', status: 'running', critical: true },
+                    { name: 'Prowlarr', container: 'prowlarr', status: 'running', critical: false },
+                    { name: 'Navidrome', container: 'navidrome', status: 'running', critical: false },
+                    { name: 'Komga', container: 'komga', status: 'running', critical: false },
+                    { name: 'Gotify', container: 'gotify', status: 'running', critical: false },
+                    { name: 'Lidarr', container: 'lidarr', status: 'stopped', critical: false }
+                ],
+                notifications: [
+                    { type: 'success', msg: 'Téléchargement terminé: Breaking Bad S01', time: '14:30' },
+                    { type: 'info', msg: 'Sauvegarde quotidienne effectuée', time: '03:00' },
+                    { type: 'warn', msg: 'Espace disque à 45%', time: 'Hier' },
+                    { type: 'success', msg: 'Mise à jour Jellyfin installée', time: 'Hier' }
+                ],
+                library: { movies: 127, tv: 48, music: 892, comics: 234 },
+                lastBackup: 'Aujourd\'hui 03:00'
+            };
+        }
+
+        function updateDashboard(data) {
+            // Top status
+            const vpnDot = document.getElementById('vpnDot');
+            const vpnLabel = document.getElementById('vpnLabel');
+            if (data.vpn.connected) {
+                vpnDot.className = 'dot ok';
+                vpnLabel.textContent = `VPN: ${data.vpn.country}`;
+            } else {
+                vpnDot.className = 'dot err';
+                vpnLabel.textContent = 'VPN: OFF';
+            }
+
+            document.getElementById('netDot').className = data.internet ? 'dot ok' : 'dot err';
+
+            // System stats
+            document.getElementById('cpuTemp').textContent = `${data.cpu_temp}°C`;
+            document.getElementById('ramUsage').textContent = `${data.memory.used}%`;
+
+            // Disk bars
+            const hddBar = document.getElementById('hddBar');
+            hddBar.style.width = `${data.disk.used}%`;
+            hddBar.textContent = `${data.disk.used}%`;
+            hddBar.className = 'progress-fill' + (data.disk.used > 90 ? ' danger' : data.disk.used > 80 ? ' warn' : '');
+            document.getElementById('hddText').textContent = `${data.disk.used}%`;
+
+            const sdBar = document.getElementById('sdBar');
+            sdBar.style.width = `${data.sd.used}%`;
+            sdBar.textContent = `${data.sd.used}%`;
+            sdBar.className = 'progress-fill' + (data.sd.used > 85 ? ' danger' : data.sd.used > 75 ? ' warn' : '');
+            document.getElementById('sdText').textContent = `${data.sd.used}%`;
+
+            // Library
+            document.getElementById('moviesCount').textContent = data.library.movies;
+            document.getElementById('tvCount').textContent = data.library.tv;
+            document.getElementById('musicCount').textContent = data.library.music;
+            document.getElementById('comicsCount').textContent = data.library.comics;
+
+            // Services
+            state.services = data.services;
+            renderServices();
+
+            // Notifications
+            state.notifications = data.notifications;
+            renderNotifications();
+
+            // Settings
+            document.getElementById('vpnStatus').textContent = data.vpn.connected ? 'Connecté' : 'Déconnecté';
+            document.getElementById('vpnIP').textContent = data.vpn.ip;
+            document.getElementById('vpnCountry').textContent = data.vpn.country;
+            document.getElementById('lastBackup').textContent = data.lastBackup;
+        }
+
+        function renderServices() {
+            const critical = state.services.filter(s => s.critical);
+            const other = state.services.filter(s => !s.critical);
+
+            document.getElementById('criticalServices').innerHTML = critical.map(s => `
+                <div class="service-item focusable" data-service="${s.container}">
+                    <span>${s.name}</span>
+                    <span class="service-status ${s.status}">${s.status === 'running' ? '✓ Running' : '✗ Stopped'}</span>
+                </div>
+            `).join('');
+
+            document.getElementById('otherServices').innerHTML = other.map(s => `
+                <div class="service-item focusable" data-service="${s.container}">
+                    <span>${s.name}</span>
+                    <span class="service-status ${s.status}">${s.status === 'running' ? '✓' : '✗'}</span>
+                </div>
+            `).join('');
+        }
+
+        function renderNotifications() {
+            document.getElementById('notifList').innerHTML = state.notifications.map(n => `
+                <div class="notif-item ${n.type} focusable">
+                    <div>${n.msg}</div>
+                    <div class="notif-time">${n.time}</div>
+                </div>
+            `).join('');
+        }
+
+        // Navigation
+        function switchTab(index) {
+            tabs.forEach((t, i) => {
+                t.classList.toggle('active', i === index);
+                t.classList.toggle('focused', i === index && state.focusLevel === 'tabs');
+            });
+
+            document.querySelectorAll('.page').forEach((p, i) => {
+                p.classList.toggle('active', i === index);
+            });
+
+            state.currentTab = index;
+            state.contentFocus = 0;
+            updateContentFocus();
+        }
+
+        function getFocusableElements() {
+            const page = document.getElementById(`page-${pages[state.currentTab]}`);
+            return page.querySelectorAll('.focusable');
+        }
+
+        function updateContentFocus() {
+            const elements = getFocusableElements();
+            elements.forEach((el, i) => {
+                el.classList.toggle('focused', i === state.contentFocus && state.focusLevel === 'content');
+            });
+            updatePositionIndicator();
+        }
+
+        function updateTabFocus() {
+            tabs.forEach((t, i) => {
+                t.classList.toggle('focused', i === state.currentTab && state.focusLevel === 'tabs');
+            });
+            // Highlight tabs container when in tab mode
+            document.getElementById('tabsContainer').classList.toggle('active-level', state.focusLevel === 'tabs');
+            updatePositionIndicator();
+        }
+
+        function updatePositionIndicator() {
+            const indicator = document.getElementById('positionIndicator');
+            if (state.focusLevel === 'tabs') {
+                indicator.textContent = `Onglet ${state.currentTab + 1}/${tabs.length}`;
+            } else if (state.focusLevel === 'content') {
+                const elements = getFocusableElements();
+                if (elements.length > 0) {
+                    indicator.textContent = `Élément ${state.contentFocus + 1}/${elements.length}`;
+                } else {
+                    indicator.textContent = 'Vue seule';
+                }
+            } else if (state.focusLevel === 'modal') {
+                indicator.textContent = state.modalFocus === 0 ? 'Confirmer' : 'Annuler';
+            }
+        }
+
+        // Actions
+        const actions = {
+            restart: () => showModal('Redémarrer les services ?', 'Tous les containers Docker seront redémarrés. Cela peut prendre quelques minutes.', async () => {
+                showToast('⏳ Redémarrage en cours...', 'warning');
+                await apiCall('/api/action/restart');
+                showToast('✅ Services redémarrés', 'success');
+            }),
+            update: () => showModal('Mettre à jour ?', 'Télécharger les dernières versions des containers. Connexion internet requise.', async () => {
+                showToast('⏳ Mise à jour en cours...', 'warning');
+                await apiCall('/api/action/update');
+                showToast('✅ Mise à jour lancée', 'success');
+            }),
+            backup: () => showModal('Créer une sauvegarde ?', 'Sauvegarder toutes les configurations sur le HDD externe.', async () => {
+                showToast('💾 Sauvegarde en cours...', 'warning');
+                await apiCall('/api/action/backup');
+                showToast('✅ Sauvegarde créée', 'success');
+            }),
+            health: () => {
+                showToast('🏥 Lancement du diagnostic...', 'warning');
+                setTimeout(() => window.location.href = '/health.html', 1000);
+            },
+            logs: () => showToast('📋 Fonctionnalité bientôt disponible', 'warning'),
+            dashboard: () => switchDashboard(),
+            'switch-pack': () => showPackModal(),
+            reboot: () => showModal('Redémarrer le Raspberry Pi ?', '⚠️ Le système sera indisponible pendant 2-3 minutes. Êtes-vous sûr ?', async () => {
+                showToast('🔌 Redémarrage du système...', 'error');
+                await apiCall('/api/action/reboot');
+            })
+        };
+
+        // Pack Modal
+        async function showPackModal() {
+            try {
+                const res = await fetch(`${API}/api/packs`);
+                const data = await res.json();
+                document.getElementById('currentPackName').textContent = data.current || 'unknown';
+                document.getElementById('packModal').style.display = 'block';
+            } catch (e) {
+                document.getElementById('currentPackName').textContent = 'unknown';
+                document.getElementById('packModal').style.display = 'block';
+            }
+        }
+
+        function closePackModal() {
+            document.getElementById('packModal').style.display = 'none';
+        }
+
+        // Pack selection click handlers
+        document.querySelectorAll('.pack-option').forEach(el => {
+            el.onclick = async () => {
+                const pack = el.dataset.pack;
+                closePackModal();
+                showModal(`Changer vers le pack ${pack.toUpperCase()} ?`,
+                    'Cela va arrêter les services actuels et démarrer uniquement ceux du nouveau pack. Cette opération peut prendre plusieurs minutes.',
+                    async () => {
+                        showToast(`📦 Changement vers ${pack}...`, 'warning');
+                        await apiCall('/api/action/switch-pack', { pack: pack });
+                        showToast(`✅ Pack ${pack} activé ! Redémarrage des services...`, 'success');
+                    }
+                );
+            };
+        });
+
+        // Close pack modal on Escape
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && document.getElementById('packModal').style.display === 'block') {
+                closePackModal();
+            }
+        });
+
+        async function apiCall(endpoint, data = null) {
+            showLoading();
+            try {
+                const opts = data ? {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                } : { method: 'POST' };
+
+                const res = await fetch(`${API}${endpoint}`, opts);
+                hideLoading();
+                if (!res.ok) throw new Error('API error');
+                fetchData();
+                return true;
+            } catch (e) {
+                hideLoading();
+                showToast('❌ Erreur de connexion', 'error');
+                console.error('API error:', e);
+                return false;
+            }
+        }
+
+        function switchDashboard() {
+            const urls = [
+                { name: 'Homarr', url: 'http://localhost:7575' },
+                { name: 'Jellyfin', url: 'http://localhost:8096' },
+                { name: 'Komga', url: 'http://localhost:25600' },
+                { name: 'Navidrome', url: 'http://localhost:4533' }
+            ];
+            // For demo, cycle through
+            alert('Utilisez /opt/mediahub/scripts/change-dashboard.sh pour changer de vue');
+        }
+
+        // Modal
+        let modalCallback = null;
+
+        function showModal(title, message, onConfirm) {
+            document.getElementById('modalTitle').textContent = title;
+            document.getElementById('modalMessage').textContent = message;
+            modalCallback = onConfirm;
+            document.getElementById('modalOverlay').classList.add('active');
+            state.focusLevel = 'modal';
+            state.modalFocus = 0;
+            updateModalFocus();
+        }
+
+        function closeModal() {
+            document.getElementById('modalOverlay').classList.remove('active');
+            state.focusLevel = 'content';
+            modalCallback = null;
+        }
+
+        function updateModalFocus() {
+            document.getElementById('modalConfirm').classList.toggle('focused', state.modalFocus === 0);
+            document.getElementById('modalCancel').classList.toggle('focused', state.modalFocus === 1);
+            updatePositionIndicator();
+        }
+
+        document.getElementById('modalConfirm').onclick = () => {
+            if (modalCallback) modalCallback();
+            closeModal();
+        };
+
+        document.getElementById('modalCancel').onclick = closeModal;
+
+        // Optional: Play feedback sound (if supported)
+        function playFeedback(type = 'click') {
+            // Web Audio API for TV feedback
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+
+                if (type === 'click') {
+                    osc.frequency.value = 800;
+                    gain.gain.value = 0.1;
+                } else if (type === 'error') {
+                    osc.frequency.value = 300;
+                    gain.gain.value = 0.15;
+                } else if (type === 'success') {
+                    osc.frequency.value = 1200;
+                    gain.gain.value = 0.1;
+                }
+
+                osc.start();
+                setTimeout(() => {
+                    osc.stop();
+                    ctx.close();
+                }, 100);
+            } catch (e) {
+                // Audio not supported, ignore
+            }
+        }
+
+        // Show skip indicator for page/home navigation
+        function showSkipIndicator(text) {
+            const indicator = document.getElementById('skipIndicator');
+            indicator.textContent = text;
+            indicator.classList.add('show');
+            setTimeout(() => {
+                indicator.classList.remove('show');
+            }, 1500);
+        }
+
+        // Update focus mode indicator when focus level changes
+        function updateFocusModeIndicator() {
+            const indicator = document.getElementById('focusModeIndicator');
+            const modeNames = {
+                'tabs': '↔️ Onglets',
+                'content': '↕️ Contenu',
+                'modal': '⚠️ Dialogue'
+            };
+            indicator.textContent = modeNames[state.focusLevel] || 'Navigation';
+            indicator.classList.add('show');
+            setTimeout(() => {
+                indicator.classList.remove('show');
+            }, 2000);
+        }
+
+        // Keyboard navigation (CEC remote maps to these keys)
+        document.addEventListener('keydown', (e) => {
+            if (state.focusLevel === 'modal') {
+                handleModalKeys(e);
+            } else if (state.focusLevel === 'tabs') {
+                handleTabKeys(e);
+            } else {
+                handleContentKeys(e);
+            }
+
+            // Global shortcuts
+            if (e.key === 'r' || e.key === 'R') {
+                showToast('🔄 Actualisation...', 'warning');
+                fetchData();
+            } else if (e.key === 'h' || e.key === 'H') {
+                showSkipIndicator('🏠 Retour Homarr');
+                setTimeout(() => {
+                    window.location.href = 'http://localhost:7575';
+                }, 500);
+            } else if (e.key === 'Home') {
+                // Jump to first tab
+                playFeedback('success');
+                state.focusLevel = 'tabs';
+                switchTab(0);
+                updateFocusModeIndicator();
+                showSkipIndicator('⏮️ Premier onglet');
+            } else if (e.key === 'End') {
+                // Jump to last tab
+                playFeedback('success');
+                state.focusLevel = 'tabs';
+                switchTab(tabs.length - 1);
+                updateFocusModeIndicator();
+                showSkipIndicator('⏭️ Dernier onglet');
+            } else if (e.key === 'PageUp' && state.focusLevel === 'content') {
+                // Jump to first element
+                playFeedback('click');
+                state.contentFocus = 0;
+                updateContentFocus();
+                const elements = getFocusableElements();
+                if (elements.length > 0) scrollToFocused(elements[0]);
+                showSkipIndicator('⬆️ Premier élément');
+            } else if (e.key === 'PageDown' && state.focusLevel === 'content') {
+                // Jump to last element
+                playFeedback('click');
+                const elements = getFocusableElements();
+                state.contentFocus = elements.length - 1;
+                updateContentFocus();
+                if (elements.length > 0) scrollToFocused(elements[elements.length - 1]);
+                showSkipIndicator('⬇️ Dernier élément');
+            } else if (e.key >= '1' && e.key <= '5') {
+                // Quick tab switch with number keys
+                const tabIndex = parseInt(e.key) - 1;
+                if (tabIndex < tabs.length) {
+                    playFeedback('success');
+                    state.focusLevel = 'tabs';
+                    switchTab(tabIndex);
+                    updateFocusModeIndicator();
+                }
+            } else if (e.key === '?' || e.key === '/') {
+                // Show help
+                document.getElementById('helpOverlay').classList.add('active');
+            }
+
+            // Handle help overlay closing
+            if (document.getElementById('helpOverlay').classList.contains('active')) {
+                if (e.key === 'Escape' || e.key === 'Backspace') {
+                    document.getElementById('helpOverlay').classList.remove('active');
+                    e.preventDefault();
+                    return;
+                }
+            }
+        });
+
+        function handleTabKeys(e) {
+            switch (e.key) {
+                case 'ArrowLeft':
+                    playFeedback('click');
+                    switchTab((state.currentTab - 1 + tabs.length) % tabs.length);
+                    break;
+                case 'ArrowRight':
+                    playFeedback('click');
+                    switchTab((state.currentTab + 1) % tabs.length);
+                    break;
+                case 'ArrowDown':
+                case 'Enter':
+                    playFeedback('success');
+                    state.focusLevel = 'content';
+                    updateTabFocus();
+                    updateContentFocus();
+                    updateFocusModeIndicator();
+                    break;
+            }
+        }
+
+        function handleContentKeys(e) {
+            const elements = getFocusableElements();
+            if (elements.length === 0) return;
+
+            // Calculate grid dimensions for actions page (4 columns)
+            const isActionsPage = pages[state.currentTab] === 'actions';
+            const cols = isActionsPage ? 4 : 1;
+            const currentRow = Math.floor(state.contentFocus / cols);
+            const currentCol = state.contentFocus % cols;
+
+            switch (e.key) {
+                case 'ArrowUp':
+                    if (currentRow === 0) {
+                        // Go back to tabs
+                        playFeedback('click');
+                        state.focusLevel = 'tabs';
+                        updateTabFocus();
+                        updateContentFocus();
+                    } else {
+                        // Move up in grid
+                        playFeedback('click');
+                        const newIndex = (currentRow - 1) * cols + currentCol;
+                        state.contentFocus = Math.max(0, newIndex);
+                        updateContentFocus();
+                        scrollToFocused(elements[state.contentFocus]);
+                    }
+                    break;
+                case 'ArrowDown':
+                    if (isActionsPage) {
+                        // Move down in grid
+                        const newIndex = (currentRow + 1) * cols + currentCol;
+                        if (newIndex < elements.length) {
+                            playFeedback('click');
+                            state.contentFocus = newIndex;
+                        }
+                    } else {
+                        if (state.contentFocus < elements.length - 1) {
+                            playFeedback('click');
+                            state.contentFocus++;
+                        }
+                    }
+                    updateContentFocus();
+                    scrollToFocused(elements[state.contentFocus]);
+                    break;
+                case 'ArrowLeft':
+                    if (state.contentFocus > 0) {
+                        playFeedback('click');
+                        state.contentFocus--;
+                        updateContentFocus();
+                        scrollToFocused(elements[state.contentFocus]);
+                    }
+                    break;
+                case 'ArrowRight':
+                    if (state.contentFocus < elements.length - 1) {
+                        playFeedback('click');
+                        state.contentFocus++;
+                        updateContentFocus();
+                        scrollToFocused(elements[state.contentFocus]);
+                    }
+                    break;
+                case 'Enter':
+                    playFeedback('success');
+                    const focused = elements[state.contentFocus];
+                    if (focused) {
+                        const action = focused.dataset.action;
+                        const service = focused.dataset.service;
+                        if (action && actions[action]) {
+                            actions[action]();
+                        } else if (service) {
+                            showModal(`Redémarrer ${service} ?`, `Le service "${service}" sera redémarré. Cette action peut prendre quelques secondes.`, async () => {
+                                showToast(`⏳ Redémarrage de ${service}...`, 'warning');
+                                const success = await apiCall(`/api/service/${service}/restart`);
+                                if (success) {
+                                    showToast(`✅ ${service} redémarré`, 'success');
+                                }
+                            });
+                        }
+                    }
+                    break;
+                case 'Escape':
+                case 'Backspace':
+                    playFeedback('click');
+                    state.focusLevel = 'tabs';
+                    updateTabFocus();
+                    updateContentFocus();
+                    updateFocusModeIndicator();
+                    break;
+            }
+        }
+
+        // Smooth scroll to keep focused element visible
+        function scrollToFocused(element) {
+            if (element) {
+                element.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        }
+
+        function handleModalKeys(e) {
+            switch (e.key) {
+                case 'ArrowLeft':
+                case 'ArrowRight':
+                    playFeedback('click');
+                    state.modalFocus = state.modalFocus === 0 ? 1 : 0;
+                    updateModalFocus();
+                    break;
+                case 'Enter':
+                    if (state.modalFocus === 0) {
+                        playFeedback('success');
+                        if (modalCallback) modalCallback();
+                    } else {
+                        playFeedback('error');
+                    }
+                    closeModal();
+                    break;
+                case 'Escape':
+                case 'Backspace':
+                    playFeedback('error');
+                    closeModal();
+                    break;
+            }
+        }
+
+        // Initialize
+        updateClock();
+        setInterval(updateClock, 60000);
+        fetchData();
+        setInterval(fetchData, 30000);
+        switchTab(0);
+        state.focusLevel = 'tabs';
+        updateTabFocus();
+    </script>
+</body>
+</html>

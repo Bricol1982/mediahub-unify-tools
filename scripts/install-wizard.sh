@@ -644,6 +644,83 @@ Toutes les données seront DÉFINITIVEMENT PERDUES !\n\n\
     return 0
 }
 
+select_installation_pack() {
+    INSTALLATION_PACK=$($TUI --title "Pack d'Installation" \
+        --menu "Choisissez votre pack d'installation:\n\nCela détermine quels services seront installés." 20 70 4 \
+        "minimal" "Streaming basique (7 services, ~1.5GB RAM)" \
+        "essential" "Configuration standard (15 services, ~3GB RAM)" \
+        "full" "Toutes les fonctionnalités (30+ services, ~6GB RAM)" \
+        "custom" "Choisir les services individuellement" \
+        3>&1 1>&2 2>&3)
+
+    if [[ -z "$INSTALLATION_PACK" ]]; then
+        INSTALLATION_PACK="essential"
+    fi
+
+    case "$INSTALLATION_PACK" in
+        minimal)
+            $TUI --title "Pack Minimal" --msgbox "PACK MINIMAL (7 services)\n\n\
+Services inclus:\n\
+• VPN + qBittorrent (Téléchargements)\n\
+• Prowlarr + FlareSolverr (Indexeurs)\n\
+• Sonarr (Séries TV)\n\
+• Radarr (Films)\n\
+• Jellyfin (Serveur Média)\n\n\
+Idéal pour: Raspberry Pi 3, ressources limitées" 18 60
+            ;;
+        essential)
+            $TUI --title "Pack Essentiel" --msgbox "PACK ESSENTIEL (15 services)\n\n\
+Tous les services minimaux PLUS:\n\
+• Lidarr (Téléchargement musique)\n\
+• Bazarr (Sous-titres)\n\
+• Jellyseerr (Gestion des demandes)\n\
+• Heimdall (Dashboard)\n\
+• Portainer (Gestion Docker)\n\
+• Watchtower (Mises à jour auto)\n\
+• Unpackerr + Recyclarr (Automatisation)\n\n\
+Idéal pour: Raspberry Pi 4, serveur domestique standard" 20 60
+            ;;
+        full)
+            $TUI --title "Pack Complet" --msgbox "PACK COMPLET (30+ services)\n\n\
+Tous les services essentiels PLUS:\n\
+• Navidrome (Streaming musique)\n\
+• Komga (Comics/Manga)\n\
+• PhotoPrism (Galerie photos)\n\
+• Homarr (Dashboard avancé)\n\
+• Netdata + Uptime Kuma (Monitoring)\n\
+• Pi-hole (Blocage pub)\n\
+• Duplicati (Sauvegardes)\n\
+• Notifications (Gotify, Apprise)\n\
+• Et plus...\n\n\
+Idéal pour: Systèmes puissants, fonctionnalités complètes" 22 60
+            ;;
+        custom)
+            CUSTOM_SERVICES=$($TUI --title "Pack Personnalisé" \
+                --checklist "Sélectionnez les services à installer:" 25 70 15 \
+                "sonarr" "Gestionnaire Séries TV" ON \
+                "radarr" "Gestionnaire Films" ON \
+                "lidarr" "Gestionnaire Musique" OFF \
+                "bazarr" "Gestionnaire Sous-titres" OFF \
+                "jellyfin" "Serveur Média" ON \
+                "jellyseerr" "Gestionnaire Demandes" OFF \
+                "navidrome" "Streaming Musique" OFF \
+                "komga" "Lecteur Comics/Manga" OFF \
+                "photoprism" "Galerie Photos" OFF \
+                "homarr" "Dashboard" ON \
+                "heimdall" "Dashboard Simple" OFF \
+                "portainer" "Gestion Docker" OFF \
+                "netdata" "Monitoring Système" OFF \
+                "uptime-kuma" "Monitoring Services" OFF \
+                "pihole" "Bloqueur Pub/DNS" OFF \
+                "duplicati" "Solution Backup" OFF \
+                "watchtower" "Mises à jour Auto" ON \
+                3>&1 1>&2 2>&3)
+            ;;
+    esac
+
+    return 0
+}
+
 select_features() {
     local choices
     local title="$(t "features.title")"
@@ -671,6 +748,7 @@ show_summary() {
     local features_label="$(t "summary.features")"
 
     local summary="$title :\n\n"
+    summary+="Pack d'installation : $INSTALLATION_PACK\n"
     summary+="$provider_label : $VPN_SERVICE_PROVIDER\n"
     summary+="$(t "password.title") : $(t "common.confirm")\n"
 
@@ -977,10 +1055,28 @@ DOCKERCFG
 
         show_progress 80 "$MSG_STARTING_SERVICES"
         save_state "START"
+
+        # Load pack configuration and determine services to start
+        local pack_services=""
+        if [[ -f "$INSTALL_DIR/config/packs.conf" ]]; then
+            source "$INSTALL_DIR/config/packs.conf"
+        fi
+
+        case "$INSTALLATION_PACK" in
+            minimal) pack_services="$PACK_MINIMAL" ;;
+            essential) pack_services="$PACK_ESSENTIAL" ;;
+            full) pack_services="$PACK_FULL" ;;
+            custom) pack_services="gluetun qbittorrent prowlarr flaresolverr $CUSTOM_SERVICES" ;;
+            *) pack_services="$PACK_ESSENTIAL" ;;
+        esac
+
+        # Save current pack
+        echo "$INSTALLATION_PACK" > "$INSTALL_DIR/.current_pack"
+
         if [[ "$HARDWARE_MODE" == "limited" ]]; then
-            docker compose -f docker-compose.pi3.yml up -d > /dev/null 2>&1 || true
+            docker compose -f docker-compose.pi3.yml up -d $pack_services > /dev/null 2>&1 || true
         else
-            docker compose up -d > /dev/null 2>&1 || true
+            docker compose up -d $pack_services > /dev/null 2>&1 || true
         fi
 
         show_progress 85 "$MSG_LINKING"
@@ -1514,6 +1610,9 @@ main() {
     if ! select_hdd; then
         exit 1
     fi
+
+    # Select installation pack
+    select_installation_pack
 
     # Select features
     select_features

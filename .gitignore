@@ -2,8 +2,14 @@
 .env
 *.env.local
 
-# Configuration directories (may contain API keys)
-config/
+# Configuration directories data (may contain API keys)
+# Keep base config templates but ignore runtime data
+!config/
+config/*/cache/
+config/*/logs/
+config/*/*.db
+config/*/*.db-shm
+config/*/*.db-wal
 data/
 
 # Logs
