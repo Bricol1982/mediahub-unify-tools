@@ -782,6 +782,29 @@ services:
     depends_on:
       - gotify
 
+  # ===========================================
+  # Development Tools
+  # ===========================================
+  code-server:
+    image: lscr.io/linuxserver/code-server:latest
+    container_name: code-server
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+      - PASSWORD=${CODE_SERVER_PASSWORD:-mediahub123}
+      - SUDO_PASSWORD=${CODE_SERVER_PASSWORD:-mediahub123}
+      - DEFAULT_WORKSPACE=/workspace
+    volumes:
+      - ${CONFIG_PATH}/code-server:/config
+      - ${INSTALL_DIR:-/opt/mediahub}:/workspace
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "8443:8443"
+    restart: unless-stopped
+    networks:
+      - medianet
+
 networks:
   medianet:
     driver: bridge
