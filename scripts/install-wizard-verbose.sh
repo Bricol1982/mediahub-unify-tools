@@ -672,12 +672,31 @@ run_installation() {
         if [[ "$FORMAT_HDD" == true ]]; then
             # Unmount any existing partitions on the drive before formatting
             substep "Unmounting existing partitions on $SELECTED_DRIVE..."
+
+            # Disable any swap on this drive
             for part in $(lsblk -n -o NAME "$SELECTED_DRIVE" | tail -n +2); do
-                umount "/dev/$part" 2>/dev/null || true
+                swapoff "/dev/$part" 2>/dev/null || true
+            done
+
+            # Kill any processes using the drive
+            fuser -km "$SELECTED_DRIVE"* 2>/dev/null || true
+            sleep 1
+
+            # Unmount all partitions (force and lazy)
+            for part in $(lsblk -n -o NAME "$SELECTED_DRIVE" | tail -n +2); do
+                umount -f "/dev/$part" 2>/dev/null || true
+                umount -l "/dev/$part" 2>/dev/null || true
             done
             # Also try direct unmount
-            umount "${SELECTED_DRIVE}"* 2>/dev/null || true
-            sleep 1
+            umount -f "${SELECTED_DRIVE}"* 2>/dev/null || true
+            umount -l "${SELECTED_DRIVE}"* 2>/dev/null || true
+
+            # Remove from device mapper if present (LVM/LUKS)
+            for part in $(lsblk -n -o NAME "$SELECTED_DRIVE" | tail -n +2); do
+                dmsetup remove "/dev/$part" 2>/dev/null || true
+            done
+
+            sleep 2
             success "Partitions unmounted"
 
             # Full format and partition
