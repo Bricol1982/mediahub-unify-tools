@@ -52,7 +52,13 @@ if [[ ! -f "$HEIMDALL_DB" ]]; then
     echo -e "${YELLOW}Database not found. Creating via API...${NC}"
 fi
 
-# Function to add app via Heimdall's database
+# Check if sqlite3 is available on host
+if ! command -v sqlite3 &>/dev/null; then
+    echo -e "${YELLOW}Installing sqlite3...${NC}"
+    apt-get update -qq && apt-get install -y -qq sqlite3
+fi
+
+# Function to add app via Heimdall's database (using host sqlite3)
 add_app_to_db() {
     local title="$1"
     local url="$2"
@@ -62,15 +68,15 @@ add_app_to_db() {
     local order="$6"
 
     # Check if app already exists
-    if docker exec heimdall sqlite3 /config/www/app.sqlite \
+    if sqlite3 "$HEIMDALL_DB" \
         "SELECT COUNT(*) FROM items WHERE title='$title';" 2>/dev/null | grep -q "^[1-9]"; then
         echo -e "  ${YELLOW}⊘${NC} $title (already exists)"
         return
     fi
 
     # Insert into database
-    docker exec heimdall sqlite3 /config/www/app.sqlite "
-        INSERT INTO items (title, url, colour, icon, description, pinned, type, user_id, created_at, updated_at, 'order')
+    sqlite3 "$HEIMDALL_DB" "
+        INSERT INTO items (title, url, colour, icon, description, pinned, type, user_id, created_at, updated_at, \"order\")
         VALUES ('$title', '$url', '$color', '$icon', '$description', 1, 0, 0, datetime('now'), datetime('now'), $order);
     " 2>/dev/null
 
@@ -79,19 +85,6 @@ add_app_to_db() {
     else
         echo -e "  ${RED}✗${NC} $title (failed to add)"
     fi
-}
-
-# Alternative: Create apps via Heimdall SupportedApps system
-create_supported_app() {
-    local app_id="$1"
-    local title="$2"
-    local url="$3"
-    local color="$4"
-    local description="$5"
-
-    # Heimdall stores enhanced apps differently
-    # We'll use the standard items table
-    add_app_to_db "$title" "$url" "" "$color" "$description" "$6"
 }
 
 echo -e "${BLUE}Adding Essential Pack applications to Heimdall...${NC}"
