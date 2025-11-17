@@ -1228,26 +1228,162 @@ EOF
 }
 
 setup_tv_kiosk_mode_verbose() {
+    local KIOSK_USER="${SUDO_USER:-pi}"
+    local user_home=$(eval echo ~$KIOSK_USER)
+    local DASHBOARD_URL="http://localhost:7575"
+
     substep "Installing kiosk packages..."
     apt-get install -y -qq \
         chromium-browser xserver-xorg x11-xserver-utils \
         xinit openbox unclutter 2>&1 | head -20
 
-    local user_home=$(eval echo ~${SUDO_USER:-pi})
-    mkdir -p "$user_home/.config/openbox"
+    # Configure auto-login on tty1
+    substep "Configuring auto-login..."
+    mkdir -p /etc/systemd/system/getty@tty1.service.d/
+    cat > /etc/systemd/system/getty@tty1.service.d/autologin.conf << EOF
+[Service]
+ExecStart=
+ExecStart=-/sbin/agetty --autologin $KIOSK_USER --noclear %I \$TERM
+EOF
 
+    # Setup Openbox autostart
+    mkdir -p "$user_home/.config/openbox"
     substep "Creating openbox autostart..."
-    cat > "$user_home/.config/openbox/autostart" << 'EOF'
+    cat > "$user_home/.config/openbox/autostart" << EOF
+# Disable screen saver and power management
 xset s off
 xset s noblank
 xset -dpms
+
+# Hide mouse cursor after 5 seconds of inactivity
 unclutter -idle 5 -root &
+
+# Wait for network and services
 sleep 15
-chromium-browser --kiosk --disable-infobars --no-first-run --start-fullscreen http://localhost:7575
+
+# Launch Chromium in kiosk mode
+chromium-browser \\
+    --kiosk \\
+    --disable-infobars \\
+    --disable-session-crashed-bubble \\
+    --disable-restore-session-state \\
+    --disable-features=TranslateUI \\
+    --noerrdialogs \\
+    --no-first-run \\
+    --start-fullscreen \\
+    --window-position=0,0 \\
+    --user-data-dir=/tmp/chromium-kiosk \\
+    "$DASHBOARD_URL"
+EOF
+    chown -R "$KIOSK_USER:$KIOSK_USER" "$user_home/.config/openbox"
+
+    # Create .xinitrc
+    substep "Configuring X server startup..."
+    cat > "$user_home/.xinitrc" << 'EOF'
+#!/bin/sh
+exec openbox-session
+EOF
+    chmod +x "$user_home/.xinitrc"
+    chown "$KIOSK_USER:$KIOSK_USER" "$user_home/.xinitrc"
+
+    # Add startx to .bash_profile
+    substep "Configuring automatic X server start..."
+    if ! grep -q "startx" "$user_home/.bash_profile" 2>/dev/null; then
+        cat >> "$user_home/.bash_profile" << 'EOF'
+
+# Start X server on login (tty1 only)
+if [[ -z $DISPLAY ]] && [[ $(tty) = /dev/tty1 ]]; then
+    exec startx -- -nocursor
+fi
+EOF
+    fi
+    chown "$KIOSK_USER:$KIOSK_USER" "$user_home/.bash_profile"
+
+    # Create dashboard management scripts
+    substep "Creating dashboard management scripts..."
+    mkdir -p "$INSTALL_DIR/scripts"
+
+    cat > "$INSTALL_DIR/scripts/change-dashboard.sh" << 'EOF'
+#!/bin/bash
+CURRENT_URL=$(grep "chromium-browser" ~/.config/openbox/autostart | grep -oP 'http[s]?://[^ ]+' | tail -1)
+echo "Current dashboard: $CURRENT_URL"
+echo ""
+echo "Available options:"
+echo "  1. Homarr (Dashboard)     - http://localhost:7575"
+echo "  2. Jellyfin (Media)       - http://localhost:8096"
+echo "  3. Komga (Comics)         - http://localhost:25600"
+echo "  4. Navidrome (Music)      - http://localhost:4533"
+echo "  5. TV Admin Panel         - http://localhost:8091"
+echo "  6. Uptime Kuma (Status)   - http://localhost:3001"
+echo "  7. Custom URL"
+echo ""
+read -p "Select option (1-7): " choice
+case $choice in
+    1) NEW_URL="http://localhost:7575" ;;
+    2) NEW_URL="http://localhost:8096" ;;
+    3) NEW_URL="http://localhost:25600" ;;
+    4) NEW_URL="http://localhost:4533" ;;
+    5) NEW_URL="http://localhost:8091" ;;
+    6) NEW_URL="http://localhost:3001" ;;
+    7) read -p "Enter custom URL: " NEW_URL ;;
+    *) echo "Invalid option"; exit 1 ;;
+esac
+sed -i "s|$CURRENT_URL|$NEW_URL|g" ~/.config/openbox/autostart
+echo "Dashboard URL changed to: $NEW_URL"
+echo "Restart to apply: sudo systemctl restart mediahub-kiosk"
+EOF
+    chmod +x "$INSTALL_DIR/scripts/change-dashboard.sh"
+
+    cat > "$INSTALL_DIR/scripts/refresh-dashboard.sh" << 'EOF'
+#!/bin/bash
+pkill -f chromium-browser
+sleep 2
+EOF
+    chmod +x "$INSTALL_DIR/scripts/refresh-dashboard.sh"
+    chown -R "$KIOSK_USER:$KIOSK_USER" "$INSTALL_DIR/scripts/"
+
+    # Create kiosk systemd service
+    substep "Creating kiosk systemd service..."
+    cat > /etc/systemd/system/mediahub-kiosk.service << EOF
+[Unit]
+Description=MediaHub TV Kiosk Mode
+After=mediahub.service network-online.target
+Wants=mediahub.service
+
+[Service]
+Type=simple
+User=$KIOSK_USER
+Environment=DISPLAY=:0
+ExecStartPre=/bin/sleep 15
+ExecStart=/usr/bin/startx -- -nocursor
+Restart=on-failure
+RestartSec=10
+StandardInput=tty
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+
+[Install]
+WantedBy=graphical.target
 EOF
 
-    chown -R ${SUDO_USER:-pi}:${SUDO_USER:-pi} "$user_home/.config/openbox"
-    substep "Kiosk mode autostart configured"
+    systemctl daemon-reload
+    systemctl enable mediahub-kiosk.service 2>/dev/null || true
+
+    # Configure HDMI output (Raspberry Pi specific)
+    substep "Configuring HDMI output..."
+    if [[ -f /boot/config.txt ]] && ! grep -q "hdmi_force_hotplug" /boot/config.txt; then
+        cat >> /boot/config.txt << 'EOF'
+
+# MediaHub TV Configuration
+hdmi_force_hotplug=1
+hdmi_drive=2
+disable_overscan=1
+EOF
+    fi
+
+    success "TV Kiosk mode fully configured"
+    info "Dashboard will display on HDMI after reboot"
 }
 
 setup_systemd_service_verbose() {
