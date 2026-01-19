@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MediaHub - Language Selection</title>
+    <style>
+        :root {
+            --bg: #0f0f23;
+            --card: #1e1e3f;
+            --accent: #00ff88;
+            --accent2: #00d4ff;
+            --text: #ffffff;
+            --dim: #888888;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, var(--bg) 0%, #1a1a4a 100%);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            text-align: center;
+            max-width: 800px;
+            width: 100%;
+        }
+
+        .logo {
+            font-size: 4em;
+            margin-bottom: 20px;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        h1 {
+            font-size: 3em;
+            color: var(--accent);
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            font-size: 1.3em;
+            color: var(--dim);
+            margin-bottom: 50px;
+        }
+
+        .language-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+
+        .language-card {
+            background: var(--card);
+            border: 3px solid rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 25px 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            color: inherit;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .language-card:hover {
+            border-color: var(--accent2);
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0, 212, 255, 0.3);
+        }
+
+        .language-card:active {
+            transform: translateY(-2px);
+        }
+
+        .flag {
+            font-size: 3em;
+        }
+
+        .lang-name {
+            font-size: 1.2em;
+            font-weight: bold;
+        }
+
+        .lang-native {
+            color: var(--dim);
+            font-size: 0.9em;
+        }
+
+        .coming-soon {
+            opacity: 0.5;
+            pointer-events: none;
+            position: relative;
+        }
+
+        .coming-soon::after {
+            content: 'Coming Soon';
+            position: absolute;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--accent2);
+            color: var(--bg);
+            padding: 3px 10px;
+            border-radius: 10px;
+            font-size: 0.7em;
+            font-weight: bold;
+        }
+
+        .info {
+            background: rgba(0, 212, 255, 0.1);
+            border-radius: 10px;
+            padding: 15px;
+            color: var(--dim);
+            max-width: 500px;
+            margin: 0 auto;
+        }
+
+        .info strong {
+            color: var(--accent2);
+        }
+
+        @media (max-width: 600px) {
+            h1 { font-size: 2em; }
+            .logo { font-size: 3em; }
+            .language-grid { grid-template-columns: 1fr 1fr; gap: 15px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">🎬</div>
+        <h1>MediaHub</h1>
+        <p class="subtitle">Select your language / Choisissez votre langue</p>
+
+        <div class="language-grid">
+            <a href="index.html?lang=fr" class="language-card" onclick="setLang('fr')">
+                <span class="flag">🇫🇷</span>
+                <span class="lang-name">Français</span>
+                <span class="lang-native">French</span>
+            </a>
+
+            <a href="index.html?lang=en" class="language-card" onclick="setLang('en')">
+                <span class="flag">🇬🇧</span>
+                <span class="lang-name">English</span>
+                <span class="lang-native">English</span>
+            </a>
+
+            <a href="index.html?lang=es" class="language-card" onclick="setLang('es')">
+                <span class="flag">🇪🇸</span>
+                <span class="lang-name">Español</span>
+                <span class="lang-native">Spanish</span>
+            </a>
+
+            <div class="language-card coming-soon">
+                <span class="flag">🇩🇪</span>
+                <span class="lang-name">Deutsch</span>
+                <span class="lang-native">German</span>
+            </div>
+
+            <div class="language-card coming-soon">
+                <span class="flag">🇮🇹</span>
+                <span class="lang-name">Italiano</span>
+                <span class="lang-native">Italian</span>
+            </div>
+
+            <div class="language-card coming-soon">
+                <span class="flag">🇵🇹</span>
+                <span class="lang-name">Português</span>
+                <span class="lang-native">Portuguese</span>
+            </div>
+
+            <div class="language-card coming-soon">
+                <span class="flag">🇳🇱</span>
+                <span class="lang-name">Nederlands</span>
+                <span class="lang-native">Dutch</span>
+            </div>
+
+            <div class="language-card coming-soon">
+                <span class="flag">🇷🇺</span>
+                <span class="lang-name">Русский</span>
+                <span class="lang-native">Russian</span>
+            </div>
+        </div>
+
+        <div class="info">
+            <strong>💡 Tip:</strong> You can change the language anytime from the settings menu.
+        </div>
+    </div>
+
+    <script>
+        function setLang(lang) {
+            localStorage.setItem('mediahub_lang', lang);
+            localStorage.setItem('mediahub_lang_selected', 'true');
+        }
+
+        // Check if already has a language preference
+        const savedLang = localStorage.getItem('mediahub_lang_selected');
+        if (savedLang) {
+            // Redirect to main page
+            const currentLang = localStorage.getItem('mediahub_lang') || 'fr';
+            window.location.href = `index.html?lang=${currentLang}`;
+        }
+    </script>
+</body>
+</html>

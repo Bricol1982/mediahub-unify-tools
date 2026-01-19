@@ -173,8 +173,8 @@ Ajouter les bibliothèques :
 - Télécharger les métadonnées : Activé
 
 **Séries :**
-- Dossier : `/data/tvshows`
-- Type : Séries TV
+- Dossier : `/data/series`
+- Type : Séries
 - Langue : Français
 - Télécharger les métadonnées : Activé
 

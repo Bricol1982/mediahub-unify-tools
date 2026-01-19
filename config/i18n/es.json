@@ -1,0 +1,199 @@
+{
+  "lang": "es",
+  "name": "Español",
+  "flag": "🇪🇸",
+
+  "common": {
+    "next": "Continuar",
+    "back": "Volver",
+    "skip": "Omitir",
+    "cancel": "Cancelar",
+    "confirm": "Confirmar",
+    "save": "Guardar",
+    "loading": "Cargando...",
+    "error": "Error",
+    "success": "Éxito",
+    "warning": "Advertencia",
+    "info": "Información",
+    "yes": "Sí",
+    "no": "No",
+    "close": "Cerrar",
+    "open": "Abrir",
+    "retry": "Reintentar",
+    "install": "Instalar",
+    "configure": "Configurar",
+    "test": "Probar"
+  },
+
+  "welcome": {
+    "title": "MediaHub",
+    "subtitle": "Asistente de configuración inicial",
+    "language_select": "Elige tu idioma",
+    "language_confirm": "Continuar en español"
+  },
+
+  "steps": {
+    "verification": "Verificación",
+    "vpn": "VPN",
+    "services": "Servicios",
+    "indexers": "Indexadores",
+    "notifications": "Notificaciones",
+    "complete": "Completado"
+  },
+
+  "system_check": {
+    "title": "Verificación del sistema",
+    "description": "Verifiquemos que todo funciona correctamente...",
+    "docker": "Docker",
+    "docker_checking": "Verificando...",
+    "docker_ok": "Docker está operativo",
+    "services": "Servicios",
+    "services_ok": "Todos los servicios están iniciados",
+    "services_count": "{count} servicios activos",
+    "network": "Red",
+    "network_ok": "Conexión a internet activa",
+    "storage": "Almacenamiento",
+    "storage_ok": "Almacenamiento disponible"
+  },
+
+  "vpn": {
+    "title": "Verificación VPN",
+    "checking": "Probando conexión VPN...",
+    "connected": "¡VPN conectado!",
+    "not_connected": "VPN No Conectado",
+    "provider": "Proveedor",
+    "ip": "IP",
+    "country": "País",
+    "retry": "Reintentar",
+    "change_provider": "¿Necesitas cambiar de proveedor VPN?",
+    "providers_supported": "MediaHub soporta <strong>24+ proveedores VPN</strong>",
+    "guide_link": "Guía Completa VPN",
+    "connection_info": "El VPN aún no está activo. Puede tardar unos minutos en el primer inicio."
+  },
+
+  "services": {
+    "title": "Tus Servicios",
+    "description": "Todos estos servicios están ahora disponibles:",
+    "dashboard": "Panel principal",
+    "media_player": "Reproductor multimedia",
+    "tv_series": "Series de TV",
+    "movies": "Películas",
+    "indexers": "Indexadores",
+    "downloads": "Descargas",
+    "tip_title": "Bueno saber",
+    "tip_content": "¡Todos los servicios ya están conectados! Sonarr y Radarr usan automáticamente qBittorrent para descargar.",
+    "configure_indexers": "Configurar indexadores"
+  },
+
+  "indexers": {
+    "title": "Configuración de Indexadores",
+    "description": "Los indexadores son tus fuentes de descarga. Selecciona un pack predefinido:",
+    "pack_label": "Pack de indexadores:",
+    "standard": "Estándar (Recomendado) - Películas y Series",
+    "full": "Completo - Películas, Series y Anime",
+    "minimal": "Mínimo - Solo películas",
+    "skip": "Omitir este paso (configuración manual)",
+    "helper": "Siempre puedes agregar más indexadores después en Prowlarr.",
+    "installing": "Agregando...",
+    "install_button": "Instalar indexadores",
+    "success_standard": "YTS, EZTV, 1337x agregados y sincronizados",
+    "success_full": "YTS, EZTV, 1337x, Nyaa.si agregados y sincronizados",
+    "success_minimal": "YTS agregado y sincronizado"
+  },
+
+  "notifications": {
+    "title": "Configuración de Notificaciones",
+    "description": "Configura tus notificaciones para ser alertado sobre nuevas descargas, actualizaciones y alertas del sistema.",
+    "discord": "Discord",
+    "discord_desc": "Notificaciones vía webhook de Discord",
+    "discord_placeholder": "https://discord.com/api/webhooks/...",
+    "telegram": "Telegram",
+    "telegram_desc": "Notificaciones vía bot de Telegram",
+    "telegram_token": "Bot Token (de @BotFather)",
+    "telegram_chat": "Chat ID",
+    "gotify": "Gotify",
+    "gotify_desc": "Auto-alojado (ya instalado)",
+    "gotify_configured": "Gotify ya está configurado en tu servidor",
+    "email": "Email",
+    "email_desc": "Notificaciones por email",
+    "email_placeholder": "tu@email.com",
+    "ntfy": "ntfy",
+    "ntfy_desc": "Notificaciones push ligeras (instalado)",
+    "ntfy_configured": "ntfy ya está configurado",
+    "services_title": "Servicios a notificar",
+    "sonarr": "Sonarr (Series)",
+    "radarr": "Radarr (Películas)",
+    "lidarr": "Lidarr (Música)",
+    "readarr": "Readarr (Libros)",
+    "prowlarr": "Prowlarr (Indexadores)",
+    "system": "Alertas del Sistema",
+    "configuring": "Configurando...",
+    "configure_button": "Configurar notificaciones",
+    "skip_button": "Omitir este paso",
+    "success": "{count} canal(es) configurado(s) para {services} servicio(s)"
+  },
+
+  "complete": {
+    "title": "¡Configuración Completada!",
+    "description": "¡Tu MediaHub está listo para usar!",
+    "next_steps": "Próximos pasos:",
+    "step_jellyfin": "Jellyfin - Crea tu cuenta de administrador (primer inicio)",
+    "step_prowlarr": "Prowlarr - Verifica tus indexadores",
+    "step_sonarr": "Sonarr - Agrega tus series favoritas",
+    "step_radarr": "Radarr - Agrega tus películas",
+    "step_notifications": "Notificaciones - Verifica tus alertas configuradas",
+    "documentation": "Documentación completa",
+    "doc_info": "Consulta el README para más detalles:",
+    "go_dashboard": "Ir al Dashboard"
+  },
+
+  "installer": {
+    "welcome": "Bienvenido a la instalación de MediaHub",
+    "requirements": "Antes de comenzar, asegúrate de tener:",
+    "req_hdd": "Un disco duro externo conectado",
+    "req_vpn": "Una cuenta VPN (ProtonVPN, NordVPN, Mullvad, etc.)",
+    "req_credentials": "Tus credenciales VPN OpenVPN/Wireguard",
+    "req_ready": "¿Tienes todos estos elementos?",
+    "master_password": "Contraseña maestra",
+    "master_password_desc": "Esta contraseña protegerá tus credenciales cifradas",
+    "master_password_confirm": "Confirmar contraseña maestra",
+    "password_mismatch": "Las contraseñas no coinciden",
+    "password_weak": "La contraseña debe tener al menos 8 caracteres",
+    "installation_complete": "¡Instalación completada!",
+    "services_starting": "Iniciando servicios...",
+    "error_rollback": "Error detectado, revirtiendo..."
+  },
+
+  "vpn_setup": {
+    "title": "Configuración VPN",
+    "select_provider": "Selecciona tu proveedor VPN",
+    "providers_info": "MediaHub soporta 24+ proveedores vía Gluetun",
+    "recommended": "Recomendado",
+    "privacy": "Privacidad",
+    "popular": "Popular",
+    "unlimited": "Dispositivos ilimitados",
+    "fast": "Rápido",
+    "open_source": "Código abierto",
+    "build_plan": "Plan personalizado",
+    "user_friendly": "Fácil de usar",
+    "custom_config": "Configuración Personalizada",
+    "openvpn_user": "Usuario OpenVPN",
+    "openvpn_pass": "Contraseña OpenVPN",
+    "wireguard_key": "Clave privada Wireguard",
+    "wireguard_addresses": "Direcciones Wireguard",
+    "server_country": "País del servidor",
+    "server_region": "Región del servidor",
+    "server_city": "Ciudad del servidor",
+    "service_credentials_warning": "ATENCIÓN: ¡Estas son tus credenciales de SERVICIO, no tu cuenta!",
+    "credentials_help": "Estas credenciales son diferentes de tu email/contraseña de cuenta."
+  },
+
+  "errors": {
+    "generic": "Ocurrió un error",
+    "network": "Error de conexión de red",
+    "docker_not_running": "Docker no está ejecutándose",
+    "vpn_connection_failed": "Fallo en la conexión VPN",
+    "invalid_credentials": "Credenciales inválidas",
+    "service_unavailable": "Servicio no disponible"
+  }
+}

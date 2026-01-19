@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MediaHub - Guide VPN</title>
+    <style>
+        :root {
+            --bg: #0f0f23;
+            --card: #1e1e3f;
+            --accent: #00ff88;
+            --accent2: #00d4ff;
+            --text: #ffffff;
+            --dim: #888888;
+            --success: #00ff88;
+            --warning: #ffaa00;
+            --error: #ff4444;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, var(--bg) 0%, #1a1a4a 100%);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        h1 {
+            font-size: 2.5em;
+            color: var(--accent);
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            font-size: 1.2em;
+            color: var(--dim);
+        }
+
+        .card {
+            background: var(--card);
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 25px;
+        }
+
+        h2 {
+            color: var(--accent2);
+            margin-bottom: 20px;
+            font-size: 1.5em;
+        }
+
+        h3 {
+            color: var(--accent);
+            margin: 20px 0 15px 0;
+            font-size: 1.2em;
+        }
+
+        .provider-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .provider-card {
+            background: rgba(255,255,255,0.05);
+            border: 2px solid rgba(255,255,255,0.1);
+            border-radius: 10px;
+            padding: 15px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+        }
+
+        .provider-card:hover {
+            border-color: var(--accent);
+            transform: translateY(-3px);
+            box-shadow: 0 5px 20px rgba(0,255,136,0.2);
+        }
+
+        .provider-card.selected {
+            border-color: var(--accent);
+            background: rgba(0,255,136,0.1);
+        }
+
+        .provider-card.recommended {
+            border-color: var(--warning);
+        }
+
+        .provider-card.recommended::after {
+            content: '⭐ Recommandé';
+            display: block;
+            color: var(--warning);
+            font-size: 0.8em;
+            margin-top: 8px;
+        }
+
+        .provider-name {
+            font-weight: bold;
+            font-size: 1.1em;
+            margin-bottom: 5px;
+        }
+
+        .provider-type {
+            color: var(--dim);
+            font-size: 0.85em;
+        }
+
+        .provider-features {
+            margin-top: 10px;
+            font-size: 0.85em;
+        }
+
+        .feature-tag {
+            display: inline-block;
+            background: rgba(0,212,255,0.2);
+            color: var(--accent2);
+            padding: 2px 8px;
+            border-radius: 10px;
+            margin: 2px;
+            font-size: 0.75em;
+        }
+
+        .instructions {
+            background: rgba(0,0,0,0.3);
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+            display: none;
+        }
+
+        .instructions.visible {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .step-list {
+            counter-reset: step;
+        }
+
+        .step-item {
+            position: relative;
+            padding-left: 50px;
+            margin-bottom: 15px;
+            line-height: 1.6;
+        }
+
+        .step-item::before {
+            counter-increment: step;
+            content: counter(step);
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 35px;
+            height: 35px;
+            background: var(--accent);
+            color: var(--bg);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+
+        code {
+            background: rgba(0,0,0,0.5);
+            padding: 3px 8px;
+            border-radius: 5px;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.9em;
+            color: var(--accent);
+        }
+
+        .code-block {
+            background: rgba(0,0,0,0.5);
+            padding: 15px;
+            border-radius: 10px;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+
+        .code-block code {
+            background: none;
+            padding: 0;
+            display: block;
+            white-space: pre;
+        }
+
+        .btn {
+            background: var(--accent);
+            color: var(--bg);
+            border: none;
+            padding: 12px 30px;
+            border-radius: 25px;
+            font-size: 1em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 20px rgba(0,255,136,0.4);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            border: 2px solid var(--accent2);
+            color: var(--accent2);
+        }
+
+        .btn-secondary:hover {
+            background: var(--accent2);
+            color: var(--bg);
+        }
+
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+
+        .comparison-table th,
+        .comparison-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .comparison-table th {
+            background: rgba(0,0,0,0.3);
+            color: var(--accent2);
+        }
+
+        .comparison-table tr:hover {
+            background: rgba(255,255,255,0.05);
+        }
+
+        .check { color: var(--success); }
+        .cross { color: var(--error); }
+
+        .alert {
+            padding: 15px;
+            border-radius: 10px;
+            margin: 15px 0;
+        }
+
+        .alert-info {
+            background: rgba(0,212,255,0.15);
+            border-left: 4px solid var(--accent2);
+        }
+
+        .alert-warning {
+            background: rgba(255,170,0,0.15);
+            border-left: 4px solid var(--warning);
+        }
+
+        .alert-success {
+            background: rgba(0,255,136,0.15);
+            border-left: 4px solid var(--success);
+        }
+
+        .tabs {
+            display: flex;
+            border-bottom: 2px solid rgba(255,255,255,0.1);
+            margin-bottom: 20px;
+        }
+
+        .tab {
+            padding: 12px 25px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+            transition: all 0.3s ease;
+        }
+
+        .tab:hover {
+            color: var(--accent2);
+        }
+
+        .tab.active {
+            border-bottom-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .back-link {
+            color: var(--accent2);
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+
+        .back-link:hover {
+            color: var(--accent);
+        }
+
+        .category-section {
+            margin-bottom: 30px;
+        }
+
+        .category-title {
+            color: var(--warning);
+            margin-bottom: 15px;
+            font-size: 1.1em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .terminal {
+            background: #000;
+            border-radius: 10px;
+            padding: 20px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+
+        .terminal-header {
+            color: var(--dim);
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #333;
+        }
+
+        .terminal-line {
+            color: var(--success);
+            margin-bottom: 5px;
+        }
+
+        .terminal-line::before {
+            content: '$ ';
+            color: var(--accent2);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="index.html" class="back-link">← Retour à l'accueil</a>
+
+        <header>
+            <h1>🔒 Configuration VPN</h1>
+            <p class="subtitle">Choisissez et configurez votre fournisseur VPN</p>
+        </header>
+
+        <!-- Provider Selection -->
+        <div class="card">
+            <h2>📋 Fournisseurs VPN Supportés</h2>
+            <p style="margin-bottom: 20px; color: var(--dim);">
+                MediaHub supporte <strong>24+ fournisseurs VPN</strong> via Gluetun. Sélectionnez votre fournisseur pour voir les instructions de configuration.
+            </p>
+
+            <!-- Category: Recommended -->
+            <div class="category-section">
+                <div class="category-title">⭐ Recommandés pour la Vie Privée</div>
+                <div class="provider-grid">
+                    <div class="provider-card recommended" onclick="selectProvider('protonvpn')">
+                        <div class="provider-name">ProtonVPN</div>
+                        <div class="provider-type">OpenVPN / Wireguard</div>
+                        <div class="provider-features">
+                            <span class="feature-tag">No-logs</span>
+                            <span class="feature-tag">Swiss</span>
+                        </div>
+                    </div>
+                    <div class="provider-card" onclick="selectProvider('mullvad')">
+                        <div class="provider-name">Mullvad</div>
+                        <div class="provider-type">Wireguard</div>
+                        <div class="provider-features">
+                            <span class="feature-tag">Anonymous</span>
+                            <span class="feature-tag">No-logs</span>
+                        </div>
+                    </div>
+                    <div class="provider-card" onclick="selectProvider('ivpn')">
+                        <div class="provider-name">IVPN</div>
+                        <div class="provider-type">OpenVPN / Wireguard</div>
+                        <div class="provider-features">
+                            <span class="feature-tag">No-logs</span>
+                            <span class="feature-tag">Open-source</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Category: Popular -->
+            <div class="category-section">
+                <div class="category-title">🌟 Populaires</div>
+                <div class="provider-grid">
+                    <div class="provider-card" onclick="selectProvider('nordvpn')">
+                        <div class="provider-name">NordVPN</div>
+                        <div class="provider-type">OpenVPN</div>
+                        <div class="provider-features">
+                            <span class="feature-tag">5000+ servers</span>
+                        </div>
+                    </div>
+                    <div class="provider-card" onclick="selectProvider('surfshark')">
+                        <div class="provider-name">Surfshark</div>
+                        <div class="provider-type">OpenVPN</div>
+                        <div class="provider-features">
+                            <span class="feature-tag">Unlimited devices</span>
+                        </div>
+                    </div>
+                    <div class="provider-card" onclick="selectProvider('pia')">
+                        <div class="provider-name">Private Internet Access</div>
+                        <div class="provider-type">OpenVPN / Wireguard</div>
+                        <div class="provider-features">
+                            <span class="feature-tag">PIA</span>
+                        </div>
+                    </div>
+                    <div class="provider-card" onclick="selectProvider('expressvpn')">
+                        <div class="provider-name">ExpressVPN</div>
+                        <div class="provider-type">OpenVPN</div>
+                        <div class="provider-features">
+                            <span class="feature-tag">Fast</span>
+                        </div>
+                    </div>
+                    <div class="provider-card" onclick="selectProvider('cyberghost')">
+                        <div class="provider-name">CyberGhost</div>
+                        <div class="provider-type">OpenVPN</div>
+                        <div class="provider-features">
+                            <span class="feature-tag">User-friendly</span>
+                        </div>
+                    </div>
+                    <div class="provider-card" onclick="selectProvider('windscribe')">
+                        <div class="provider-name">Windscribe</div>
+                        <div class="provider-type">OpenVPN</div>
+                        <div class="provider-features">
+                            <span class="feature-tag">Build-a-plan</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Category: Advanced -->
+            <div class="category-section">
+                <div class="category-title">🔧 Avancés / Wireguard</div>
+                <div class="provider-grid">
+                    <div class="provider-card" onclick="selectProvider('airvpn')">
+                        <div class="provider-name">AirVPN</div>
+                        <div class="provider-type">Wireguard</div>
+                        <div class="provider-features">
+                            <span class="feature-tag">Port forwarding</span>
+                        </div>
+                    </div>
+                    <div class="provider-card" onclick="selectProvider('custom')">
+                        <div class="provider-name">Configuration Personnalisée</div>
+                        <div class="provider-type">OpenVPN / Wireguard</div>
+                        <div class="provider-features">
+                            <span class="feature-tag">Your own config</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Category: Others -->
+            <div class="category-section">
+                <div class="category-title">📦 Autres Fournisseurs Supportés</div>
+                <div class="provider-grid">
+                    <div class="provider-card" onclick="selectProvider('ipvanish')">
+                        <div class="provider-name">IPVanish</div>
+                        <div class="provider-type">OpenVPN</div>
+                    </div>
+                    <div class="provider-card" onclick="selectProvider('vyprvpn')">
+                        <div class="provider-name">VyprVPN</div>
+                        <div class="provider-type">OpenVPN</div>
+                    </div>
+                    <div class="provider-card" onclick="selectProvider('purevpn')">
+                        <div class="provider-name">PureVPN</div>
+                        <div class="provider-type">OpenVPN</div>
+                    </div>
+                    <div class="provider-card" onclick="selectProvider('privatevpn')">
+                        <div class="provider-name">PrivateVPN</div>
+                        <div class="provider-type">OpenVPN</div>
+                    </div>
+                    <div class="provider-card" onclick="selectProvider('torguard')">
+                        <div class="provider-name">TorGuard</div>
+                        <div class="provider-type">OpenVPN</div>
+                    </div>
+                    <div class="provider-card" onclick="selectProvider('hidemyass')">
+                        <div class="provider-name">HideMyAss</div>
+                        <div class="provider-type">OpenVPN</div>
+                    </div>
+                    <div class="provider-card" onclick="selectProvider('fastestvpn')">
+                        <div class="provider-name">FastestVPN</div>
+                        <div class="provider-type">OpenVPN</div>
+                    </div>
+                    <div class="provider-card" onclick="selectProvider('perfectprivacy')">
+                        <div class="provider-name">Perfect Privacy</div>
+                        <div class="provider-type">OpenVPN</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Instructions Container -->
+        <div class="card" id="instructions-container" style="display: none;">
+            <h2 id="provider-title">Instructions de Configuration</h2>
+            <div id="provider-instructions"></div>
+        </div>
+
+        <!-- Quick Setup -->
+        <div class="card">
+            <h2>⚡ Configuration Rapide (Terminal)</h2>
+            <p style="margin-bottom: 15px;">
+                Utilisez le script de configuration VPN pour une installation automatisée :
+            </p>
+            <div class="terminal">
+                <div class="terminal-header">Terminal - Configuration VPN</div>
+                <div class="terminal-line">cd /opt/mediahub</div>
+                <div class="terminal-line">./scripts/setup-vpn.sh</div>
+            </div>
+            <div class="alert alert-info" style="margin-top: 15px;">
+                <strong>💡 Conseil :</strong> Le script setup-vpn.sh vous guidera à travers un assistant interactif pour configurer votre VPN, même si vous n'avez aucune expérience technique.
+            </div>
+        </div>
+
+        <!-- Comparison Table -->
+        <div class="card">
+            <h2>📊 Comparaison des Fournisseurs</h2>
+            <div style="overflow-x: auto;">
+                <table class="comparison-table">
+                    <thead>
+                        <tr>
+                            <th>Fournisseur</th>
+                            <th>No-Logs</th>
+                            <th>Wireguard</th>
+                            <th>Port Forward</th>
+                            <th>Prix/mois</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>ProtonVPN</strong></td>
+                            <td class="check">✓</td>
+                            <td class="check">✓</td>
+                            <td class="cross">✗</td>
+                            <td>~5€</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Mullvad</strong></td>
+                            <td class="check">✓</td>
+                            <td class="check">✓</td>
+                            <td class="check">✓</td>
+                            <td>5€</td>
+                        </tr>
+                        <tr>
+                            <td><strong>IVPN</strong></td>
+                            <td class="check">✓</td>
+                            <td class="check">✓</td>
+                            <td class="check">✓</td>
+                            <td>~6€</td>
+                        </tr>
+                        <tr>
+                            <td><strong>NordVPN</strong></td>
+                            <td class="check">✓</td>
+                            <td class="cross">✗</td>
+                            <td class="cross">✗</td>
+                            <td>~4€</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Surfshark</strong></td>
+                            <td class="check">✓</td>
+                            <td class="cross">✗</td>
+                            <td class="cross">✗</td>
+                            <td>~2€</td>
+                        </tr>
+                        <tr>
+                            <td><strong>PIA</strong></td>
+                            <td class="check">✓</td>
+                            <td class="check">✓</td>
+                            <td class="check">✓</td>
+                            <td>~2€</td>
+                        </tr>
+                        <tr>
+                            <td><strong>AirVPN</strong></td>
+                            <td class="check">✓</td>
+                            <td class="check">✓</td>
+                            <td class="check">✓</td>
+                            <td>~4€</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Advanced Section -->
+        <div class="card">
+            <h2>🔧 Configuration Manuelle (.env)</h2>
+            <p style="margin-bottom: 15px;">
+                Pour les utilisateurs avancés, vous pouvez éditer directement le fichier <code>.env</code> :
+            </p>
+            <div class="code-block">
+<code># Configuration VPN
+VPN_SERVICE_PROVIDER=protonvpn
+VPN_TYPE=openvpn
+
+# Pour OpenVPN (la plupart des fournisseurs)
+OPENVPN_USER=votre_username
+OPENVPN_PASSWORD=votre_password
+SERVER_COUNTRIES=Netherlands
+
+# Pour Wireguard (Mullvad, AirVPN, etc.)
+WIREGUARD_PRIVATE_KEY=votre_cle_privee
+WIREGUARD_ADDRESSES=10.64.0.1/32
+</code>
+            </div>
+        </div>
+
+        <!-- Troubleshooting -->
+        <div class="card">
+            <h2>🔍 Dépannage VPN</h2>
+
+            <h3>Le VPN ne se connecte pas</h3>
+            <div class="step-list">
+                <div class="step-item">
+                    Vérifiez vos identifiants dans le fichier <code>.env</code>
+                </div>
+                <div class="step-item">
+                    Consultez les logs : <code>docker logs gluetun</code>
+                </div>
+                <div class="step-item">
+                    Redémarrez le conteneur : <code>docker compose restart gluetun</code>
+                </div>
+            </div>
+
+            <h3>Tester la connexion</h3>
+            <div class="terminal">
+                <div class="terminal-header">Vérification IP</div>
+                <div class="terminal-line">docker exec gluetun wget -qO- https://ipinfo.io/ip</div>
+            </div>
+
+            <div class="alert alert-warning" style="margin-top: 15px;">
+                <strong>⚠️ Important :</strong> Ne partagez jamais vos identifiants VPN. Utilisez toujours les identifiants de service (OpenVPN/IKEv2), pas vos identifiants de compte.
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div style="text-align: center; margin-top: 30px;">
+            <a href="index.html" class="btn btn-secondary">← Retour</a>
+            <button class="btn" onclick="runSetupScript()">🚀 Lancer la Configuration</button>
+        </div>
+    </div>
+
+    <script>
+        // Provider instructions database
+        const providerInstructions = {
+            protonvpn: {
+                name: 'ProtonVPN',
+                steps: [
+                    'Connectez-vous à <a href="https://account.protonvpn.com" target="_blank">account.protonvpn.com</a>',
+                    'Allez dans <strong>Account</strong> → <strong>OpenVPN / IKEv2 username</strong>',
+                    'Copiez votre nom d\'utilisateur (format: xyz123...)',
+                    'Notez votre mot de passe OpenVPN (différent du mot de passe du compte)',
+                    'Ces identifiants sont spécifiques à OpenVPN, pas votre compte ProtonVPN'
+                ],
+                env: `VPN_SERVICE_PROVIDER=protonvpn
+OPENVPN_USER=votre_username_openvpn
+OPENVPN_PASSWORD=votre_password_openvpn
+SERVER_COUNTRIES=Netherlands`
+            },
+            mullvad: {
+                name: 'Mullvad',
+                steps: [
+                    'Connectez-vous à <a href="https://mullvad.net/account" target="_blank">mullvad.net/account</a>',
+                    'Allez dans <strong>Wireguard configuration</strong>',
+                    'Générez une nouvelle clé si nécessaire',
+                    'Copiez votre <strong>Private key</strong>',
+                    'Copiez vos <strong>Addresses</strong> (ex: 10.64.0.1/32)',
+                    'Mullvad utilise Wireguard par défaut (plus rapide)'
+                ],
+                env: `VPN_SERVICE_PROVIDER=mullvad
+VPN_TYPE=wireguard
+WIREGUARD_PRIVATE_KEY=votre_cle_privee
+WIREGUARD_ADDRESSES=10.64.0.1/32
+SERVER_CITIES=amsterdam`
+            },
+            nordvpn: {
+                name: 'NordVPN',
+                steps: [
+                    'Connectez-vous à <a href="https://my.nordaccount.com" target="_blank">my.nordaccount.com</a>',
+                    'Allez dans <strong>Services</strong> → <strong>NordVPN</strong>',
+                    'Cliquez sur <strong>Set up NordVPN manually</strong>',
+                    'Copiez le <strong>Service username</strong> et <strong>Service password</strong>',
+                    'Ces identifiants sont différents de votre compte NordVPN'
+                ],
+                env: `VPN_SERVICE_PROVIDER=nordvpn
+OPENVPN_USER=votre_service_username
+OPENVPN_PASSWORD=votre_service_password
+SERVER_COUNTRIES=Netherlands`
+            },
+            surfshark: {
+                name: 'Surfshark',
+                steps: [
+                    'Connectez-vous à <a href="https://my.surfshark.com" target="_blank">my.surfshark.com</a>',
+                    'Allez dans <strong>VPN</strong> → <strong>Manual setup</strong> → <strong>Router</strong>',
+                    'Générez vos identifiants de service',
+                    'Utilisez ces identifiants (pas votre email/mot de passe)'
+                ],
+                env: `VPN_SERVICE_PROVIDER=surfshark
+OPENVPN_USER=votre_service_username
+OPENVPN_PASSWORD=votre_service_password
+SERVER_COUNTRIES=Netherlands`
+            },
+            pia: {
+                name: 'Private Internet Access',
+                steps: [
+                    'Connectez-vous à <a href="https://www.privateinternetaccess.com/account/client-control-panel" target="_blank">PIA Control Panel</a>',
+                    'Votre username est généralement votre email ou un identifiant p123456',
+                    'Utilisez votre mot de passe PIA normal',
+                    'PIA utilise des "régions" plutôt que des pays'
+                ],
+                env: `VPN_SERVICE_PROVIDER=pia
+OPENVPN_USER=p123456
+OPENVPN_PASSWORD=votre_password
+SERVER_REGIONS=Netherlands`
+            },
+            expressvpn: {
+                name: 'ExpressVPN',
+                steps: [
+                    'Connectez-vous à <a href="https://www.expressvpn.com/setup" target="_blank">expressvpn.com/setup</a>',
+                    'Sélectionnez <strong>Manual Config</strong>',
+                    'Copiez votre username et password manuels',
+                    'Ces identifiants sont spécifiques à la configuration manuelle'
+                ],
+                env: `VPN_SERVICE_PROVIDER=expressvpn
+OPENVPN_USER=votre_manual_username
+OPENVPN_PASSWORD=votre_manual_password
+SERVER_COUNTRIES=Netherlands`
+            },
+            ivpn: {
+                name: 'IVPN',
+                steps: [
+                    'Connectez-vous à <a href="https://www.ivpn.net/account/" target="_blank">ivpn.net/account</a>',
+                    'Pour OpenVPN: utilisez votre Account ID (ivpn-xxx)',
+                    'Pour Wireguard: allez dans <strong>Wireguard</strong> tab',
+                    'Générez et copiez votre clé privée Wireguard'
+                ],
+                env: `VPN_SERVICE_PROVIDER=ivpn
+OPENVPN_USER=ivpn-xxx-xxx
+SERVER_COUNTRIES=Netherlands`
+            },
+            airvpn: {
+                name: 'AirVPN',
+                steps: [
+                    'Connectez-vous à <a href="https://airvpn.org/client/" target="_blank">airvpn.org/client</a>',
+                    'Allez dans <strong>Wireguard</strong> configuration generator',
+                    'Générez une configuration Wireguard',
+                    'Extrayez: Private Key, Preshared Key, Address, Endpoint IP et Port',
+                    'AirVPN offre le port forwarding (idéal pour torrents)'
+                ],
+                env: `VPN_SERVICE_PROVIDER=airvpn
+VPN_TYPE=wireguard
+WIREGUARD_PRIVATE_KEY=votre_cle_privee
+WIREGUARD_PRESHARED_KEY=votre_cle_partagee
+WIREGUARD_ADDRESSES=10.128.0.1/32
+VPN_ENDPOINT_IP=185.x.x.x
+VPN_ENDPOINT_PORT=1637`
+            },
+            custom: {
+                name: 'Configuration Personnalisée',
+                steps: [
+                    'Téléchargez votre fichier de configuration depuis votre fournisseur VPN',
+                    'Pour OpenVPN: placez le fichier .ovpn dans <code>config/gluetun/</code> et renommez-le <code>custom.ovpn</code>',
+                    'Pour Wireguard: placez le fichier .conf dans <code>config/gluetun/</code> et renommez-le <code>wg0.conf</code>',
+                    'Si votre config nécessite une authentification, ajoutez-la dans le fichier .env'
+                ],
+                env: `VPN_SERVICE_PROVIDER=custom
+VPN_TYPE=openvpn
+OPENVPN_CUSTOM_CONFIG=/gluetun/custom.ovpn
+
+# Ou pour Wireguard:
+# VPN_TYPE=wireguard
+# (config lue depuis wg0.conf)`
+            },
+            windscribe: {
+                name: 'Windscribe',
+                steps: [
+                    'Connectez-vous à <a href="https://windscribe.com/getconfig/openvpn" target="_blank">windscribe.com/getconfig</a>',
+                    'Générez vos identifiants OpenVPN',
+                    'Copiez username et password',
+                    'Windscribe permet de construire un plan personnalisé'
+                ],
+                env: `VPN_SERVICE_PROVIDER=windscribe
+OPENVPN_USER=votre_username_openvpn
+OPENVPN_PASSWORD=votre_password_openvpn
+SERVER_COUNTRIES=Netherlands`
+            },
+            cyberghost: {
+                name: 'CyberGhost',
+                steps: [
+                    'Connectez-vous à <a href="https://my.cyberghostvpn.com" target="_blank">my.cyberghostvpn.com</a>',
+                    'Allez dans <strong>My Devices</strong> → <strong>Configure new device</strong>',
+                    'Sélectionnez <strong>Other</strong> et <strong>Configure manually</strong>',
+                    'Copiez vos identifiants de service'
+                ],
+                env: `VPN_SERVICE_PROVIDER=cyberghost
+OPENVPN_USER=votre_service_username
+OPENVPN_PASSWORD=votre_service_password
+SERVER_COUNTRIES=Netherlands`
+            }
+        };
+
+        let selectedProvider = null;
+
+        function selectProvider(provider) {
+            // Update UI
+            document.querySelectorAll('.provider-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+            event.currentTarget.classList.add('selected');
+
+            selectedProvider = provider;
+            showInstructions(provider);
+        }
+
+        function showInstructions(provider) {
+            const container = document.getElementById('instructions-container');
+            const title = document.getElementById('provider-title');
+            const instructions = document.getElementById('provider-instructions');
+
+            const providerData = providerInstructions[provider];
+
+            if (!providerData) {
+                // Generic instructions for other providers
+                title.textContent = '📝 Instructions Générales';
+                instructions.innerHTML = `
+                    <div class="alert alert-info">
+                        Pour ce fournisseur, utilisez vos identifiants de service OpenVPN (pas vos identifiants de compte).
+                        Consultez la documentation de votre fournisseur pour obtenir ces identifiants.
+                    </div>
+                    <div class="code-block">
+<code>VPN_SERVICE_PROVIDER=${provider}
+OPENVPN_USER=votre_service_username
+OPENVPN_PASSWORD=votre_service_password
+SERVER_COUNTRIES=Netherlands</code>
+                    </div>
+                `;
+            } else {
+                title.textContent = `📝 Configuration ${providerData.name}`;
+
+                let stepsHtml = '<div class="step-list">';
+                providerData.steps.forEach(step => {
+                    stepsHtml += `<div class="step-item">${step}</div>`;
+                });
+                stepsHtml += '</div>';
+
+                instructions.innerHTML = `
+                    ${stepsHtml}
+                    <h3 style="margin-top: 25px;">Configuration .env</h3>
+                    <div class="code-block">
+<code>${providerData.env}</code>
+                    </div>
+                    <button class="btn" onclick="copyToClipboard(\`${providerData.env}\`)" style="margin-top: 15px;">
+                        📋 Copier la Configuration
+                    </button>
+                `;
+            }
+
+            container.style.display = 'block';
+            container.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                alert('Configuration copiée dans le presse-papiers !');
+            }).catch(err => {
+                console.error('Erreur de copie:', err);
+            });
+        }
+
+        function runSetupScript() {
+            alert('Ouvrez un terminal et exécutez:\n\ncd /opt/mediahub\n./scripts/setup-vpn.sh\n\nL\'assistant vous guidera étape par étape.');
+        }
+    </script>
+</body>
+</html>

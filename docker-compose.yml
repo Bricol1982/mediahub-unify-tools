@@ -216,7 +216,7 @@ services:
       - TZ=${TZ}
     volumes:
       - ${CONFIG_PATH}/jellyfin:/config
-      - ${MEDIA_PATH}/tv:/data/tvshows
+      - ${MEDIA_PATH}/tv:/data/series
       - ${MEDIA_PATH}/movies:/data/movies
       - ${MEDIA_PATH}/music:/data/music
       - ${MEDIA_PATH}/books:/data/books

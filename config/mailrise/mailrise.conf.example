@@ -1,0 +1,44 @@
+# Mailrise Configuration
+# SMTP server that forwards emails to notification services
+# Copy this file to mailrise.conf and customize
+
+configs:
+  # Discord notifications
+  # Emails sent to discord@mailrise.xyz will be forwarded to Discord
+  discord:
+    urls:
+      - discord://${DISCORD_WEBHOOK_ID}/${DISCORD_WEBHOOK_TOKEN}
+
+  # Telegram notifications
+  # Emails sent to telegram@mailrise.xyz will be forwarded to Telegram
+  telegram:
+    urls:
+      - tgram://${TELEGRAM_BOT_TOKEN}/${TELEGRAM_CHAT_ID}
+
+  # Gotify push notifications (self-hosted)
+  # Emails sent to gotify@mailrise.xyz will be forwarded to Gotify
+  gotify:
+    urls:
+      - gotify://gotify:80/${GOTIFY_APP_TOKEN}
+
+  # ntfy notifications (self-hosted)
+  # Emails sent to ntfy@mailrise.xyz will be forwarded to ntfy
+  ntfy:
+    urls:
+      - ntfy://ntfy:80/mediahub
+
+  # All notifications (catch-all)
+  # Emails sent to any unmatched address go here
+  "*":
+    urls:
+      - gotify://gotify:80/${GOTIFY_APP_TOKEN}
+
+# SMTP server settings
+listen:
+  host: 0.0.0.0
+  port: 8025
+
+# Authentication (optional - disable for internal use only)
+smtp:
+  hostname: mailrise
+  auth_required: false
